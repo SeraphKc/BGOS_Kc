@@ -90,3 +90,26 @@ typings/
 
 # Electron-Forge
 out/
+
+# React Native
+apps/mobile/android/app/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/local.properties
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+apps/mobile/.expo/
+apps/mobile/.expo-shared/
+apps/mobile/ios/Podfile.lock
+*.xcworkspace
+*.xcuserdata
+
+# Metro
+apps/mobile/.metro-health-check*
+.expo/
+
+# Misc
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
