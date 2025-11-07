@@ -1,0 +1,21 @@
+{
+  "name": "@bgos/shared-state",
+  "version": "1.0.0",
+  "description": "Shared Redux state management for BG OS apps",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@bgos/shared-types": "workspace:*",
+    "@bgos/shared-services": "workspace:*",
+    "@reduxjs/toolkit": "^2.0.0",
+    "redux": "^5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

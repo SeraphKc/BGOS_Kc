@@ -1,9 +1,14 @@
 {
-  "name": "Ava",
-  "productName": "Ava AI Assistant",
+  "name": "bgos-kc-monorepo",
+  "productName": "BG OS AI Assistant",
   "version": "1.0.0",
-  "description": "AI-assistant",
+  "description": "AI-assistant monorepo with desktop and mobile apps",
   "main": ".webpack/main",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -12,7 +17,10 @@
     "lint": "echo \"No linting configured\"",
     "dev": "NODE_ENV=development electron-forge start",
     "dev:debug": "NODE_ENV=development electron-forge start --inspect",
-    "dev:tools": "NODE_ENV=development electron-forge start --devtools"
+    "dev:tools": "NODE_ENV=development electron-forge start --devtools",
+    "desktop": "electron-forge start",
+    "mobile": "pnpm --filter @bgos/mobile start",
+    "build:shared": "pnpm --filter '@bgos/shared-*' build"
   },
   "keywords": [],
   "author": {
