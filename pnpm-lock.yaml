@@ -156,6 +156,9 @@ importers:
       '@bgos/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
+      '@react-native-async-storage/async-storage':
+        specifier: ^2.2.0
+        version: 2.2.0(react-native@0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0))
       '@react-navigation/native':
         specifier: ^7.0.13
         version: 7.1.19(react-native@0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0))(react@19.2.0)
@@ -189,12 +192,18 @@ importers:
       react-native-screens:
         specifier: ^4.6.1
         version: 4.18.0(react-native@0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0))(react@19.2.0)
+      react-native-toast-message:
+        specifier: ^2.3.3
+        version: 2.3.3(react-native@0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0))(react@19.2.0)
       react-native-vector-icons:
         specifier: ^10.3.0
         version: 10.3.0
       react-redux:
         specifier: ^9.2.0
         version: 9.2.0(@types/react@19.2.2)(react@19.2.0)(redux@5.0.1)
+      redux-persist:
+        specifier: ^6.0.0
+        version: 6.0.0(react@19.2.0)(redux@5.0.1)
     devDependencies:
       '@babel/core':
         specifier: ^7.27.0
@@ -1517,6 +1526,11 @@ packages:
   '@pkgr/core@0.2.9':
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
+
+  '@react-native-async-storage/async-storage@2.2.0':
+    resolution: {integrity: sha512-gvRvjR5JAaUZF8tv2Kcq/Gbt3JHwbKFYfmb445rhOj6NUMx3qPLixmDx5pZAyb9at1bYvJ4/eTUipU5aki45xw==}
+    peerDependencies:
+      react-native: ^0.0.0-0 || >=0.65 <1.0
 
   '@react-native/assets-registry@0.76.9':
     resolution: {integrity: sha512-pN0Ws5xsjWOZ8P37efh0jqHHQmq+oNGKT4AyAoKRpxBDDDmlAmpaYjer9Qz7PpDKF+IUyRjF/+rBsM50a8JcUg==}
@@ -4125,6 +4139,10 @@ packages:
     resolution: {integrity: sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==}
     engines: {node: '>=0.12.0'}
 
+  is-plain-obj@2.1.0:
+    resolution: {integrity: sha512-YWnfyRwxL/+SsrWYfOpUtz5b3YD+nyfkHvjbcanzk8zgyO4ASD67uVMRt8k5bM4lLMDnXfriRhOpemw+NfT1eA==}
+    engines: {node: '>=8'}
+
   is-plain-obj@3.0.0:
     resolution: {integrity: sha512-gwsOE28k+23GP1B6vFl1oVh/WOzmawBrKwo5Ev6wMKzPkaXaCDIQKzLnvsA42DRlbVTWorkgTKIviAKCWkfUwA==}
     engines: {node: '>=10'}
@@ -4784,6 +4802,10 @@ packages:
 
   merge-descriptors@1.0.3:
     resolution: {integrity: sha512-gaNvAS7TZ897/rVaZ0nMtAyxNyi/pdbjbAwUpFQpN70GqnVfOiXpeUUMKRBmzXaSQ8DdTX4/0ms62r2K+hE6mQ==}
+
+  merge-options@3.0.4:
+    resolution: {integrity: sha512-2Sug1+knBjkaMsMgf1ctR1Ujx+Ayku4EdJN4Z+C2+JzoeF7A3OZ9KM2GY0CpQS51NR61LTurMJrRKPhSs3ZRTQ==}
+    engines: {node: '>=10'}
 
   merge-stream@2.0.0:
     resolution: {integrity: sha512-abv/qOcuPfk3URPfDzmZU1LKmuw8kT+0nIHvKrKgFrwifol/doWcdA4ZqsWQ8ENrFKkd67Mfpo/LovbIUsbt3w==}
@@ -5710,6 +5732,12 @@ packages:
       react: '*'
       react-native: '*'
 
+  react-native-toast-message@2.3.3:
+    resolution: {integrity: sha512-4IIUHwUPvKHu4gjD0Vj2aGQzqPATiblL1ey8tOqsxOWRPGGu52iIbL8M/mCz4uyqecvPdIcMY38AfwRuUADfQQ==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
+
   react-native-vector-icons@10.3.0:
     resolution: {integrity: sha512-IFQ0RE57819hOUdFvgK4FowM5aMXg7C7XKsuGLevqXkkIJatc3QopN0wYrb2IrzUgmdpfP+QVIbI3S6h7M0btw==}
     deprecated: react-native-vector-icons package has moved to a new model of per-icon-family packages. See the https://github.com/oblador/react-native-vector-icons/blob/master/MIGRATION.md on how to migrate
@@ -5787,6 +5815,15 @@ packages:
   rechoir@0.8.0:
     resolution: {integrity: sha512-/vxpCXddiX8NGfGO/mTafwjq4aFa/71pvamip0++IQk3zG8cbCj0fifNPrjjF1XMXUne91jL9OoxmdykoEtifQ==}
     engines: {node: '>= 10.13.0'}
+
+  redux-persist@6.0.0:
+    resolution: {integrity: sha512-71LLMbUq2r02ng2We9S215LtPu3fY0KgaGE0k8WRgl6RkqxtGfl7HUozz1Dftwsb0D/5mZ8dwAaPbtnzfvbEwQ==}
+    peerDependencies:
+      react: '>=16'
+      redux: '>4.0.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   redux-thunk@3.1.0:
     resolution: {integrity: sha512-NW2r5T6ksUKXCabzhL9z+h206HQw/NJkcLm1GPImRQ8IzfXwRGqjVhKJGauHirT0DAuyy6hjdnMZaRoAcy0Klw==}
@@ -8769,6 +8806,11 @@ snapshots:
     optional: true
 
   '@pkgr/core@0.2.9': {}
+
+  '@react-native-async-storage/async-storage@2.2.0(react-native@0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0))':
+    dependencies:
+      merge-options: 3.0.4
+      react-native: 0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0)
 
   '@react-native/assets-registry@0.76.9': {}
 
@@ -11884,6 +11926,8 @@ snapshots:
 
   is-number@7.0.0: {}
 
+  is-plain-obj@2.1.0: {}
+
   is-plain-obj@3.0.0: {}
 
   is-plain-obj@4.1.0: {}
@@ -12892,6 +12936,10 @@ snapshots:
   memoize-one@5.2.1: {}
 
   merge-descriptors@1.0.3: {}
+
+  merge-options@3.0.4:
+    dependencies:
+      is-plain-obj: 2.1.0
 
   merge-stream@2.0.0: {}
 
@@ -14006,6 +14054,11 @@ snapshots:
       react-native: 0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0)
       warn-once: 0.1.1
 
+  react-native-toast-message@2.3.3(react-native@0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      react: 19.2.0
+      react-native: 0.76.9(@babel/core@7.28.5)(@babel/preset-env@7.28.5(@babel/core@7.28.5))(@types/react@19.2.2)(encoding@0.1.13)(react@19.2.0)
+
   react-native-vector-icons@10.3.0:
     dependencies:
       prop-types: 15.8.1
@@ -14135,6 +14188,12 @@ snapshots:
   rechoir@0.8.0:
     dependencies:
       resolve: 1.22.11
+
+  redux-persist@6.0.0(react@19.2.0)(redux@5.0.1):
+    dependencies:
+      redux: 5.0.1
+    optionalDependencies:
+      react: 19.2.0
 
   redux-thunk@3.1.0(redux@5.0.1):
     dependencies:

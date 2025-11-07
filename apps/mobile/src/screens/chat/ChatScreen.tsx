@@ -1,66 +1,84 @@
-import React, { useState } from 'react';
-import { View, FlatList, StyleSheet } from 'react-native';
-import { TextInput, IconButton, Text } from 'react-native-paper';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState, addMessage } from '@bgos/shared-state';
+import React, { useEffect, useRef } from 'react';
+import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { ActivityIndicator, Text } from 'react-native-paper';
+import { useSelector } from 'react-redux';
+import { RootState } from '@bgos/shared-state';
 import { COLORS } from '@bgos/shared-logic';
+import { MessageBubble } from '../../components/chat/MessageBubble';
+import { MessageInput } from '../../components/chat/MessageInput';
+import { useChatHistory } from '../../hooks/useChatHistory';
 
 export default function ChatScreen({ route }: any) {
   const { chatId } = route.params;
-  const [message, setMessage] = useState('');
-  const dispatch = useDispatch();
+  const flatListRef = useRef<FlatList>(null);
+
+  const user = useSelector((state: RootState) => state.user.currentUser);
+  const token = useSelector((state: RootState) => state.user.token);
   const chatHistory = useSelector((state: RootState) => state.chatHistory.list);
+  const chat = useSelector((state: RootState) =>
+    state.chats.list.find((c) => c.id === chatId)
+  );
 
-  const handleSend = () => {
-    if (message.trim()) {
-      const newMessage = {
-        id: Date.now().toString(),
-        chatId,
-        sender: 'user' as const,
-        text: message,
-        sentDate: new Date().toISOString(),
-      };
-      dispatch(addMessage(newMessage));
-      setMessage('');
+  const { loadChatHistory, sendMessage, loading } = useChatHistory(
+    user?.id || '',
+    chatId,
+    token || ''
+  );
 
-      // TODO: Send message to backend
+  useEffect(() => {
+    if (chatId !== 'new') {
+      loadChatHistory();
     }
+  }, [chatId, loadChatHistory]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (chatHistory.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [chatHistory.length]);
+
+  const handleSend = async (text: string) => {
+    await sendMessage(text);
   };
 
-  return (
-    <View style={styles.container}>
-      <FlatList
-        data={chatHistory}
-        keyExtractor={(item) => item.id || ''}
-        renderItem={({ item }) => (
-          <View
-            style={[
-              styles.messageBubble,
-              item.sender === 'user' ? styles.userBubble : styles.assistantBubble,
-            ]}
-          >
-            <Text style={styles.messageText}>{item.text}</Text>
-          </View>
-        )}
-        contentContainerStyle={styles.messageList}
-      />
-      <View style={styles.inputContainer}>
-        <TextInput
-          value={message}
-          onChangeText={setMessage}
-          placeholder="Type a message..."
-          style={styles.input}
-          mode="outlined"
-          multiline
-        />
-        <IconButton
-          icon="send"
-          size={24}
-          onPress={handleSend}
-          style={styles.sendButton}
-        />
+  if (loading && chatHistory.length === 0) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator animating={true} size="large" color={COLORS.PRIMARY_1} />
+        <Text style={styles.loadingText}>Loading messages...</Text>
       </View>
-    </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      {chatHistory.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyText}>
+            {chatId === 'new'
+              ? 'Start a new conversation'
+              : 'No messages yet. Send a message to get started!'}
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={flatListRef}
+          data={chatHistory}
+          keyExtractor={(item) => item.id || ''}
+          renderItem={({ item }) => <MessageBubble message={item} />}
+          contentContainerStyle={styles.messageList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        />
+      )}
+      <MessageInput onSend={handleSend} disabled={loading} />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -69,38 +87,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.MAIN_BG,
   },
-  messageList: {
-    padding: 10,
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.MAIN_BG,
   },
-  messageBubble: {
-    maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-  userBubble: {
-    alignSelf: 'flex-end',
-    backgroundColor: COLORS.PRIMARY_1,
-  },
-  assistantBubble: {
-    alignSelf: 'flex-start',
-    backgroundColor: COLORS.CARD_BG,
-  },
-  messageText: {
+  loadingText: {
+    marginTop: 10,
     color: COLORS.WHITE_1,
   },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    alignItems: 'flex-end',
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
-  },
-  input: {
+  emptyState: {
     flex: 1,
-    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  sendButton: {
-    backgroundColor: COLORS.PRIMARY_1,
+  emptyText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    fontSize: 16,
+  },
+  messageList: {
+    padding: 10,
+    flexGrow: 1,
   },
 });

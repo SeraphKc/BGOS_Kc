@@ -1,6 +1,7 @@
 import React from 'react';
 import { Provider } from 'react-redux';
 import { PaperProvider } from 'react-native-paper';
+import Toast from 'react-native-toast-message';
 import { createStore } from '@bgos/shared-state';
 import AppNavigator from './src/navigation/AppNavigator';
 import { theme } from './src/theme/theme';
@@ -12,6 +13,7 @@ function App(): React.JSX.Element {
     <Provider store={store}>
       <PaperProvider theme={theme}>
         <AppNavigator />
+        <Toast />
       </PaperProvider>
     </Provider>
   );
