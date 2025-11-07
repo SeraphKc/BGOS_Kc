@@ -1,0 +1,8 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Vertical line on the left - larger -->
+<line x1="5" y1="4" x2="5" y2="20" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<!-- Horizontal arrow line (tail/stem) - longer -->
+<line x1="8" y1="12" x2="18" y2="12" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round"/>
+<!-- Arrow head pointing left - bigger -->
+<path d="M15 8L9 12L15 16" stroke="white" stroke-opacity="0.7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

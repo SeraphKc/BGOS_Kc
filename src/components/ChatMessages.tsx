@@ -1,0 +1,238 @@
+import React, { useRef, useEffect } from 'react';
+import MessageItem from './MessageItem';
+import {Assistant} from "../types/model/Assistant";
+import {ChatHistory} from "../types/model/ChatHistory";
+import spinnerImage from '../assets/images/spinner.png';
+import copyIcon from '../assets/icons/copy.svg';
+import RetryAssistantSelector from './RetryAssistantSelector';
+import BDOSIcon from './icons/BDOSIcon';
+
+interface ChatMessagesProps {
+    messages?: ChatHistory[];
+    assistant?: Assistant;
+    assistants?: Assistant[];
+    isLoading?: boolean;
+    onToggleArtifacts?: (artifact: ChatHistory) => void;
+    onOpenRightSidebar?: (artifact?: ChatHistory) => void;
+    onRetryWithAssistant?: (assistantId: string) => void;
+}
+
+// todo использовать компонент LoadingSpinner.tsx
+const LoadingSpinner: React.FC = () => {
+    return (
+        <div className="flex justify-start py-4">
+            <img 
+                src={spinnerImage} 
+                alt="Loading..." 
+                style={{
+                    width: '32px',
+                    height: '32px',
+                    animation: 'spin 1s linear infinite',
+                    display: 'block',
+                }}
+            />
+        </div>
+    );
+};
+
+const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assistants = [], isLoading = false, onToggleArtifacts, onOpenRightSidebar, onRetryWithAssistant }) => {
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    const handleCopyMessage = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            // You could add a notification here if you want to show success feedback
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        }
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages, isLoading]);
+
+    // Filter out the first message if it's from the assistant and contains "Ava assistant"
+    const filteredMessages = messages ? messages.filter((message, index) => {
+        if (index === 0 && message.sender === 'assistant' && message.text.includes('Ava assistant')) {
+            return false; // Do not render this message
+        }
+        return true; // Render all other messages
+    }) : [];
+
+    const userAvatar = (
+        <div className="rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ backgroundColor: 'rgb(193, 193, 182)', color: 'rgb(15, 16, 13)', width: '28px', height: '28px' }}>
+            U
+        </div>
+    );
+
+    const assistantAvatar = (
+        <div className="w-10 h-10 rounded-full flex items-center justify-center text-base font-bold text-gray-900 flex-shrink-0" style={{ backgroundColor: '#212121' }}>
+            {assistant?.name.charAt(0) || 'A'}
+        </div>
+    );
+
+    return (
+        <div className="w-full my-scrollbar flex-1 overflow-y-auto pb-8 flex flex-col gap-6 scroll-smooth" style={{ marginTop: '67px' }}>
+            <div className="w-full max-w-4xl mx-auto px-4" style={{ width: '100%' }}>
+                {filteredMessages && filteredMessages.length > 0 && filteredMessages.map((message, index) => (
+                    <div
+                        key={index}
+                        className="flex justify-start w-full mb-6"
+                    >
+                        {message.sender === 'user' ? (
+                            // User message with avatar and background
+                            <div className="flex justify-start w-full">
+                                <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: 'rgb(15, 16, 13)', borderRadius: '8px', maxWidth: 'fit-content' }}>
+                                    {userAvatar}
+                                    <div>
+                                        <MessageItem
+                                            message={message}
+                                            index={index}
+                                            userAvatar={userAvatar}
+                                            assistantAvatar={assistantAvatar}
+                                            assistant={assistant}
+                                            onToggleArtifacts={onToggleArtifacts}
+                                            onOpenRightSidebar={onOpenRightSidebar}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            // Assistant message with transparent background and no avatar
+                            <div className="flex-1" style={{ backgroundColor: 'transparent', borderRadius: '8px' }}>
+                                <div className="w-full">
+                                    <MessageItem
+                                        message={message}
+                                        index={index}
+                                        userAvatar={userAvatar}
+                                        assistantAvatar={assistantAvatar}
+                                        assistant={assistant}
+                                        onToggleArtifacts={onToggleArtifacts}
+                                        onOpenRightSidebar={onOpenRightSidebar}
+                                    />
+                                    
+                                    {/* BDOS Icon and Controls Footer - for all assistant messages */}
+                                    <div className={`flex flex-col gap-2 mt-4 w-full group ${index === filteredMessages.length - 1 ? '' : 'hover:opacity-100 opacity-0 transition-opacity duration-200'}`}>
+                                        <div className="flex justify-between items-center w-full">
+                                            {/* BDOS Icon on the left - only show on last message */}
+                                            <div className="flex items-center">
+                                                {index === filteredMessages.length - 1 && (
+                                                    <BDOSIcon size={32} />
+                                                )}
+                                            </div>
+                                            
+                                            {/* Copy and Retry controls on the right */}
+                                            <div className="flex items-center gap-3">
+                                                <button 
+                                                    onClick={() => handleCopyMessage(message.text)}
+                                                    className="p-2 hover:bg-gray-700/20 rounded-lg transition-colors duration-200 focus:outline-none"
+                                                    title="Copy message"
+                                                >
+                                                    <img 
+                                                        src={copyIcon} 
+                                                        alt="Copy" 
+                                                        className="w-5 h-5 object-contain"
+                                                    />
+                                                </button>
+                                                {assistants.length > 1 && onRetryWithAssistant && (
+                                                    <RetryAssistantSelector
+                                                        assistants={assistants}
+                                                        currentAssistantId={assistant?.id || ''}
+                                                        onRetryWithAssistant={onRetryWithAssistant}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Disclaimer text - only for the last message */}
+                                        {index === filteredMessages.length - 1 && (
+                                            <div className="flex items-center justify-end w-full">
+                                                <div className="flex items-center gap-2">
+                                                    <span 
+                                                        className="text-sm hover:underline cursor-pointer transition-all duration-200" 
+                                                        style={{ 
+                                                            fontFamily: 'Styrene-B',
+                                                            color: 'rgba(255, 255, 255, 0.4)'
+                                                        }}
+                                                    >
+                                                        {assistant?.name || 'Ava'} can make mistakes. Please double-check responses.
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                ))}
+                
+                {/* Loading indicator */}
+                {isLoading && (
+                    <div className="flex justify-start w-full mb-6">
+                        <div className="flex-1 p-4" style={{ backgroundColor: 'transparent', borderRadius: '8px' }}>
+                            <div className="w-full">
+                                <div className="flex flex-col gap-2 w-full">
+                                    <div className="flex justify-between items-center w-full">
+                                        <LoadingSpinner />
+                                        
+                                        {/* Controls for loading state */}
+                                        <div className="flex items-center gap-3">
+                                            <button 
+                                                className="p-2 hover:bg-gray-700/20 rounded-lg transition-colors duration-200 focus:outline-none opacity-50 cursor-not-allowed"
+                                                title="Copy message (not available while loading)"
+                                                disabled
+                                            >
+                                                <img 
+                                                    src={copyIcon} 
+                                                    alt="Copy" 
+                                                    className="w-5 h-5 object-contain"
+                                                />
+                                            </button>
+                                            {assistants.length > 1 && onRetryWithAssistant && (
+                                                <RetryAssistantSelector
+                                                    assistants={assistants}
+                                                    currentAssistantId={assistant?.id || ''}
+                                                    onRetryWithAssistant={onRetryWithAssistant}
+                                                />
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Disclaimer text for loading state */}
+                                    <div className="flex items-center justify-end w-full">
+                                        <div className="flex items-center gap-2">
+                                            <span 
+                                                className="text-sm" 
+                                                style={{ 
+                                                    fontFamily: 'Styrene-B',
+                                                    color: 'rgba(255, 255, 255, 0.4)'
+                                                }}
+                                            >
+                                                {assistant?.name || 'Ava'} can make mistakes. Please double-check responses.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            <div ref={messagesEndRef} />
+        </div>
+    );
+};
+
+export default ChatMessages; 

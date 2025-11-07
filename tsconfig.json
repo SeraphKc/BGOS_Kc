@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "es2016",                                  /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
+    "jsx": "react-jsx",
+    "module": "commonjs",                                /* Specify what module code is generated. */
+    "moduleResolution": "node",
+    "skipLibCheck": true,
+    /* Skip type checking all .d.ts files. */
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["src/**/*"]
+}

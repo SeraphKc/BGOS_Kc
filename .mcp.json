@@ -1,0 +1,39 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "description": "Unified documentation access for React, Redux Toolkit, Tailwind CSS, Webpack, Electron, and other web technologies. Provides up-to-date, version-specific documentation from the source.",
+      "env": {}
+    },
+    "elevenlabs": {
+      "command": "npx",
+      "args": ["-y", "@elevenlabs/mcp-server@latest"],
+      "description": "Official ElevenLabs MCP server for Text-to-Speech, voice cloning, audio transcription, and conversational AI integration.",
+      "env": {
+        "ELEVENLABS_API_KEY": "${ELEVENLABS_API_KEY}"
+      }
+    },
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["-y", "@czlonkowski/n8n-mcp@latest"],
+      "description": "n8n workflow automation MCP server for building and managing n8n workflows, executions, and integrations.",
+      "env": {
+        "N8N_API_URL": "${N8N_API_URL}",
+        "N8N_API_KEY": "${N8N_API_KEY}"
+      }
+    },
+    "tailwindcss": {
+      "command": "npx",
+      "args": ["-y", "tailwindcss-mcp-server@latest"],
+      "description": "Dedicated Tailwind CSS MCP server with utilities, documentation, CSS-to-Tailwind conversion, and component template generation.",
+      "env": {}
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "description": "Chrome DevTools MCP server for accessing browser console, network logs, screenshots, and debugging. Allows Claude to read DevTools console directly.",
+      "env": {}
+    }
+  }
+}

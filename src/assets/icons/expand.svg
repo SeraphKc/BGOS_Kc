@@ -1,0 +1,6 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<!-- Outer rounded rectangle representing the app layout -->
+<rect x="3" y="4" width="18" height="16" rx="2" stroke="white" stroke-opacity="0.7" stroke-width="1.5" fill="none"/>
+<!-- Vertical divider line - sidebar on left, content on right -->
+<line x1="8" y1="4" x2="8" y2="20" stroke="white" stroke-opacity="0.7" stroke-width="1.5"/>
+</svg>
