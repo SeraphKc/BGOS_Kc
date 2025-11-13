@@ -2,10 +2,20 @@ import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { ChatHistoryActions } from '@bgos/shared-state';
 import { fetchChatHistory } from '@bgos/shared-services';
+import { sendMessageToWebhook } from '../services/webhookService';
+import { createChat } from '../services/chatService';
+import { Chat } from '@bgos/shared-types';
 
-export const useChatHistory = (userId: string, chatId: string, token: string) => {
+export const useChatHistory = (
+  userId: string,
+  chatId: string,
+  token: string,
+  assistantWebhookUrl?: string,
+  selectedAssistantId?: string
+) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [creatingChat, setCreatingChat] = useState(false);
   const dispatch = useDispatch();
 
   const loadChatHistory = useCallback(async () => {
@@ -27,28 +37,167 @@ export const useChatHistory = (userId: string, chatId: string, token: string) =>
     }
   }, [userId, chatId, token, dispatch]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  /**
+   * Creates a new chat on the backend before sending first message
+   * Returns the backend-generated chat object with ID and title
+   */
+  const createNewChat = useCallback(async (firstMessage: string): Promise<Chat | null> => {
+    if (!userId || !selectedAssistantId) {
+      console.error('Cannot create chat: missing userId or selectedAssistantId');
+      return null;
+    }
 
-    const tempMessage = {
-      id: `temp-${Date.now()}`,
-      chatId,
-      sender: 'user' as const,
-      text,
-      sentDate: new Date().toISOString(),
-    };
+    try {
+      setCreatingChat(true);
+      setError(null);
 
-    dispatch(ChatHistoryActions.addMessage(tempMessage));
+      console.log('Creating new chat with first message:', firstMessage.substring(0, 50));
 
-    // TODO: Send message to backend
-    // const response = await sendMessageToBackend(userId, chatId, text, token);
-    // dispatch(ChatHistoryActions.addMessage(response));
-  }, [chatId, dispatch]);
+      const newChat = await createChat({
+        userId,
+        chatFirstMessage: firstMessage,
+        assistantId: selectedAssistantId,
+        token,
+      });
+
+      console.log('Chat created successfully:', newChat.id);
+
+      return newChat;
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to create chat';
+      setError(errorMessage);
+      console.error('Error creating chat:', err);
+
+      // Show error message in chat
+      dispatch(ChatHistoryActions.addMessage({
+        id: `error-${Date.now()}`,
+        chatId: 'new',
+        sender: 'assistant' as const,
+        text: `Error creating chat: ${errorMessage}`,
+        sentDate: new Date().toISOString(),
+        hasAttachment: false,
+        isAudio: false,
+      }));
+
+      return null;
+    } finally {
+      setCreatingChat(false);
+    }
+  }, [userId, selectedAssistantId, token, dispatch]);
+
+  /**
+   * Internal function to send a message with an optional override chatId
+   * Used when sending the first message after creating a new chat
+   * @param skipUserMessage - If true, skips adding user message (already added elsewhere)
+   */
+  const sendMessageWithChatId = useCallback(async (
+    text: string,
+    files?: any[],
+    voiceData?: any,
+    overrideChatId?: string,
+    skipUserMessage?: boolean
+  ) => {
+    // Use override chatId if provided, otherwise use the hook's chatId
+    const activeChatId = overrideChatId || chatId;
+
+    // Check if there's any content to send
+    if (!text.trim() && (!files || files.length === 0) && !voiceData) return;
+
+    // Check if webhook URL is available
+    if (!assistantWebhookUrl) {
+      console.error('No assistant webhook URL available');
+      dispatch(ChatHistoryActions.addMessage({
+        id: `error-${Date.now()}`,
+        chatId: activeChatId,
+        sender: 'assistant' as const,
+        text: 'Error: No assistant configured. Please select an assistant.',
+        sentDate: new Date().toISOString(),
+        hasAttachment: false,
+        isAudio: false,
+      }));
+      return;
+    }
+
+    // Only add user message if not skipped (for new chats, it's already added)
+    if (!skipUserMessage) {
+      // Build user message object to show immediately
+      const tempMessage: any = {
+        id: `temp-${Date.now()}`,
+        chatId: activeChatId,
+        sender: 'user' as const,
+        text,
+        sentDate: new Date().toISOString(),
+        hasAttachment: files && files.length > 0,
+        files: files || [],
+      };
+
+      // Add voice data if present
+      if (voiceData) {
+        tempMessage.isAudio = true;
+        tempMessage.audioData = voiceData.audioData;
+        tempMessage.audioFileName = voiceData.audioFileName;
+        tempMessage.audioMimeType = voiceData.audioMimeType;
+        tempMessage.duration = voiceData.duration;
+      }
+
+      console.log('🟢 useChatHistory - Adding user message to Redux:', {
+        id: tempMessage.id,
+        chatId: tempMessage.chatId,
+        text: tempMessage.text,
+        textLength: tempMessage.text?.length || 0,
+        sender: tempMessage.sender,
+        fullMessage: JSON.stringify(tempMessage),
+      });
+
+      // Show user message immediately
+      dispatch(ChatHistoryActions.addMessage(tempMessage));
+    }
+
+    try {
+      setLoading(true);
+
+      // Send message to N8n webhook
+      const response = await sendMessageToWebhook({
+        userId,
+        assistantWebhookUrl,
+        chatId: activeChatId,
+        text,
+        files,
+        audioData: voiceData?.audioData,
+        audioFileName: voiceData?.audioFileName,
+        audioMimeType: voiceData?.audioMimeType,
+        duration: voiceData?.duration,
+      });
+
+      // Add assistant response to chat
+      dispatch(ChatHistoryActions.addMessage(response));
+    } catch (err) {
+      console.error('Error sending message to webhook:', err);
+      dispatch(ChatHistoryActions.addMessage({
+        id: `error-${Date.now()}`,
+        chatId: activeChatId,
+        sender: 'assistant' as const,
+        text: `Error: ${err instanceof Error ? err.message : 'Failed to send message'}`,
+        sentDate: new Date().toISOString(),
+        hasAttachment: false,
+        isAudio: false,
+      }));
+    } finally {
+      setLoading(false);
+    }
+  }, [chatId, userId, assistantWebhookUrl, dispatch]);
+
+  const sendMessage = useCallback(async (text: string, files?: any[], voiceData?: any) => {
+    return sendMessageWithChatId(text, files, voiceData);
+  }, [sendMessageWithChatId]);
 
   return {
     loadChatHistory,
     sendMessage,
+    sendMessageWithChatId,
+    createNewChat,
     loading,
+    creatingChat,
     error,
   };
 };

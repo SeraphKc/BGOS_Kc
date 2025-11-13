@@ -2,10 +2,10 @@ import React, { useRef, useEffect } from 'react';
 import MessageItem from './MessageItem';
 import {Assistant} from "../types/model/Assistant";
 import {ChatHistory} from "../types/model/ChatHistory";
-import spinnerImage from '../assets/images/spinner.png';
 import copyIcon from '../assets/icons/copy.svg';
 import RetryAssistantSelector from './RetryAssistantSelector';
 import BDOSIcon from './icons/BDOSIcon';
+import { LoadingIndicator } from './LoadingIndicator';
 
 interface ChatMessagesProps {
     messages?: ChatHistory[];
@@ -17,23 +17,6 @@ interface ChatMessagesProps {
     onRetryWithAssistant?: (assistantId: string) => void;
 }
 
-// todo использовать компонент LoadingSpinner.tsx
-const LoadingSpinner: React.FC = () => {
-    return (
-        <div className="flex justify-start py-4">
-            <img 
-                src={spinnerImage} 
-                alt="Loading..." 
-                style={{
-                    width: '32px',
-                    height: '32px',
-                    animation: 'spin 1s linear infinite',
-                    display: 'block',
-                }}
-            />
-        </div>
-    );
-};
 
 const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assistants = [], isLoading = false, onToggleArtifacts, onOpenRightSidebar, onRetryWithAssistant }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -183,20 +166,22 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                     <div className="flex justify-start w-full mb-6">
                         <div className="flex-1 p-4" style={{ backgroundColor: 'transparent', borderRadius: '8px' }}>
                             <div className="w-full">
-                                <div className="flex flex-col gap-2 w-full">
+                                <div className="flex flex-col gap-4 w-full">
+                                    {/* Controls on first line */}
                                     <div className="flex justify-between items-center w-full">
-                                        <LoadingSpinner />
-                                        
+                                        {/* Empty space on left to align with controls */}
+                                        <div></div>
+
                                         {/* Controls for loading state */}
                                         <div className="flex items-center gap-3">
-                                            <button 
+                                            <button
                                                 className="p-2 hover:bg-gray-700/20 rounded-lg transition-colors duration-200 focus:outline-none opacity-50 cursor-not-allowed"
                                                 title="Copy message (not available while loading)"
                                                 disabled
                                             >
-                                                <img 
-                                                    src={copyIcon} 
-                                                    alt="Copy" 
+                                                <img
+                                                    src={copyIcon}
+                                                    alt="Copy"
                                                     className="w-5 h-5 object-contain"
                                                 />
                                             </button>
@@ -209,13 +194,18 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                                             )}
                                         </div>
                                     </div>
-                                    
+
+                                    {/* Loading indicator on new line where response will appear */}
+                                    <div className="w-full">
+                                        <LoadingIndicator visible={true} />
+                                    </div>
+
                                     {/* Disclaimer text for loading state */}
                                     <div className="flex items-center justify-end w-full">
                                         <div className="flex items-center gap-2">
-                                            <span 
-                                                className="text-sm" 
-                                                style={{ 
+                                            <span
+                                                className="text-sm"
+                                                style={{
                                                     fontFamily: 'Styrene-B',
                                                     color: 'rgba(255, 255, 255, 0.4)'
                                                 }}

@@ -4,7 +4,7 @@ import { TextInput, Button, Text, ActivityIndicator } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 import { UserActions } from '@bgos/shared-state';
 import { COLORS } from '@bgos/shared-logic';
-import { authService } from '../../services/authService';
+import AuthService from '../../services/AuthService';
 import Toast from 'react-native-toast-message';
 
 export default function LoginScreen({ navigation }: any) {
@@ -25,20 +25,43 @@ export default function LoginScreen({ navigation }: any) {
 
     try {
       setLoading(true);
-      const response = await authService.login({ email, password });
+      
+      // TODO: Replace with actual API call
+      // For now, using hardcoded credentials like desktop
+      if (email === 'kc@gmail.com' && password === '123') {
+        const userData = {
+          id: '1',
+          email: 'kc@gmail.com',
+          name: 'Kc',
+        };
+        
+        const accessToken = 'user-token-123';
+        const refreshToken = 'refresh-token-456';
 
-      dispatch(UserActions.login({
-        user: response.user,
-        token: response.token,
-      }));
+        // Store credentials securely
+        await AuthService.login(accessToken, refreshToken, userData);
 
-      Toast.show({
-        type: 'success',
-        text1: 'Welcome!',
-        text2: `Logged in as ${response.user.name}`,
-      });
+        // Update Redux state
+        dispatch(UserActions.login({
+          user: {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            avatarUrl: '',
+          },
+          token: accessToken,
+        }));
 
-      navigation.replace('ChatList');
+        Toast.show({
+          type: 'success',
+          text1: 'Welcome!',
+          text2: `Logged in as ${userData.name}`,
+        });
+
+        navigation.replace('Chat', { chatId: 'new' });
+      } else {
+        throw new Error('Invalid credentials');
+      }
     } catch (error) {
       console.error('Login failed:', error);
       Toast.show({
@@ -58,10 +81,10 @@ export default function LoginScreen({ navigation }: any) {
     >
       <View style={styles.content}>
         <Text variant="headlineLarge" style={styles.title}>
-          BG OS Assistant
+          Welcome to BGOS
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Sign in to access your AI assistants
+          The home of your AI assistants
         </Text>
 
         <TextInput
@@ -124,11 +147,13 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: 'center',
     color: COLORS.WHITE_1,
+    fontFamily: 'Styrene-B',
   },
   subtitle: {
     marginBottom: 30,
     textAlign: 'center',
     color: 'rgba(255, 255, 255, 0.7)',
+    fontFamily: 'Styrene-B',
   },
   input: {
     marginBottom: 15,

@@ -4,20 +4,18 @@ const path = require('path');
 
 module.exports = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      unpack: '**/src/assets/**'
+    },
+    name: 'BGOS',
+    executableName: 'BGOS',
+    icon: path.resolve(__dirname, 'src/assets/icon.ico'),
   },
   rebuildConfig: {},
   makers: [
     {
-      name: '@electron-forge/maker-squirrel',
-      config: {
-        iconUrl: 'file://' + path.resolve(__dirname, 'src/assets/icon.ico'),
-        setupIcon: path.resolve(__dirname, 'src/assets/icon.ico'),           
-      },
-    },
-    {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
+      platforms: ['win32', 'darwin'],
     },
     {
         name: '@electron-forge/maker-dmg', 

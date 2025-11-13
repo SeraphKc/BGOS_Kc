@@ -8,14 +8,13 @@ const config = {
   watchFolders: [workspaceRoot],
   resolver: {
     nodeModulesPaths: [
-      path.resolve(projectRoot, 'node_modules'),
       path.resolve(workspaceRoot, 'node_modules'),
     ],
     extraNodeModules: {
-      '@bgos/shared-types': path.resolve(workspaceRoot, 'packages/shared-types/src'),
-      '@bgos/shared-logic': path.resolve(workspaceRoot, 'packages/shared-logic/src'),
-      '@bgos/shared-services': path.resolve(workspaceRoot, 'packages/shared-services/src'),
-      '@bgos/shared-state': path.resolve(workspaceRoot, 'packages/shared-state/src'),
+      '@bgos/shared-types': path.resolve(workspaceRoot, 'packages/shared-types/dist'),
+      '@bgos/shared-logic': path.resolve(workspaceRoot, 'packages/shared-logic/dist'),
+      '@bgos/shared-services': path.resolve(workspaceRoot, 'packages/shared-services/dist'),
+      '@bgos/shared-state': path.resolve(workspaceRoot, 'packages/shared-state/dist'),
     },
   },
 };

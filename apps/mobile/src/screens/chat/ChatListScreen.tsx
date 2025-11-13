@@ -94,7 +94,7 @@ export default function ChatListScreen({ navigation }: any) {
       <FAB
         icon="plus"
         style={styles.fab}
-        onPress={() => navigation.navigate('Chat', { chatId: 'new' })}
+        onPress={() => navigation.navigate('AgentSelection')}
         color={COLORS.DARK_1}
       />
     </View>

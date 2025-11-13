@@ -5,7 +5,7 @@ export declare const createStore: () => import("@reduxjs/toolkit").EnhancedStore
     chatHistory: import("./slices/ChatHistorySlice").ChatHistoryState;
     ui: import("./slices/UISlice").UIState;
 }, import("redux").UnknownAction, import("@reduxjs/toolkit").Tuple<[import("redux").StoreEnhancer<{
-    dispatch: import("@reduxjs/toolkit").ThunkDispatch<{
+    dispatch: import("redux-thunk").ThunkDispatch<{
         user: import("./slices/UserSlice").UserState;
         assistants: import("./slices/AssistantSlice").AssistantState;
         chats: import("./slices/ChatSlice").ChatState;

@@ -2,11 +2,11 @@ const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, No
 const path = require('node:path');
 
 // Set app name for notifications
-app.setName('Ava AI Assistant');
+app.setName('BGOS');
 
 // Override the app name for notifications
 if (process.platform === 'win32') {
-  app.setAppUserModelId('Ava AI Assistant');
+  app.setAppUserModelId('BGOS');
 }
 
 // Enable remote debugging for Chrome DevTools MCP integration
@@ -22,12 +22,16 @@ let mainWindow = null;
 
 const createWindow = () => {
   // Create the browser window.
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar', 'src', 'assets', 'icon.ico')
+    : path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico');
+
   mainWindow = new BrowserWindow({
     width: 1920,
     height: 1080,
     title: '',
     frame: false,
-    icon: path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico'),
+    icon: iconPath,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       nodeIntegration: false,
@@ -59,12 +63,20 @@ const createWindow = () => {
 
   // Create tray icon
   if (!tray) {
-    // use icon.ico for system tray
-    const iconPath = path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico');
-    const icon = nativeImage.createFromPath(iconPath);
+    // use icon.ico for system tray - works for both dev and production
+    const iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.ico')
+      : path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico');
+
+    // Create and resize icon for system tray (16x16 is standard for Windows)
+    let icon = nativeImage.createFromPath(iconPath);
+    if (!icon.isEmpty()) {
+      icon = icon.resize({ width: 16, height: 16 });
+    }
+
     tray = new Tray(icon);
-    
-    tray.setToolTip('Ava AI Assistant');
+
+    tray.setToolTip('BGOS');
     
     // Create tray menu
     const trayMenu = Menu.buildFromTemplate([
@@ -332,12 +344,17 @@ ipcMain.handle('show-unread-notification', async (event, { chatId, chatTitle, un
 
     // Create unique notification ID to avoid conflicts
     const notificationId = `unread-${chatId}-${Date.now()}`;
-    
+
+    // Icon path for notifications
+    const notificationIconPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'app.asar', 'src', 'assets', 'icon.ico')
+      : path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico');
+
     // Create notification
     const notification = new Notification({
       title: `New message from ${assistantName}`,
       body: `${unreadCount} an unread message in the chat "${chatTitle}"`,
-      icon: path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico'),
+      icon: notificationIconPath,
       silent: false, // Play default notification sound
       requireInteraction: false,
       tag: notificationId, // Use tag to replace notifications with same tag

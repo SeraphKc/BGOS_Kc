@@ -1,84 +1,146 @@
-import { storage } from '../utils/storage';
+import * as Keychain from 'react-native-keychain';
 
-export interface LoginCredentials {
+const ACCESS_TOKEN_KEY = 'bgos_access_token';
+const REFRESH_TOKEN_KEY = 'bgos_refresh_token';
+const USER_DATA_KEY = 'bgos_user_data';
+
+export interface Tokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface UserData {
+  id: string;
   email: string;
-  password: string;
+  name: string;
 }
 
-export interface AuthResponse {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    preferences: {
-      theme: 'dark' | 'light';
-      language: string;
-      notifications: boolean;
-    };
-  };
-  token: string;
-}
-
+/**
+ * Mobile Authentication Service
+ * Handles secure token storage using react-native-keychain
+ * iOS: Uses Keychain
+ * Android: Uses Keystore
+ */
 class AuthService {
   /**
-   * Login user with credentials
-   * TODO: Replace with actual n8n backend call
+   * Store authentication tokens securely
    */
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    // Mock implementation - replace with actual API call
-    // const response = await apiClient.post('/auth/login', credentials);
-
-    // For now, return mock data
-    const mockResponse: AuthResponse = {
-      user: {
-        id: '1',
-        name: credentials.email.split('@')[0],
-        email: credentials.email,
-        preferences: {
-          theme: 'dark',
-          language: 'en',
-          notifications: true,
-        },
-      },
-      token: 'mock-jwt-token-' + Date.now(),
-    };
-
-    // Save token to storage
-    await storage.saveToken(mockResponse.token);
-    await storage.saveUserData(mockResponse.user);
-
-    return mockResponse;
+  async setTokens(tokens: Tokens): Promise<void> {
+    try {
+      await Keychain.setGenericPassword(
+        ACCESS_TOKEN_KEY,
+        JSON.stringify(tokens),
+        {
+          service: 'com.bgos.tokens',
+        }
+      );
+    } catch (error) {
+      console.error('Error storing tokens:', error);
+      throw new Error('Failed to store authentication tokens');
+    }
   }
 
   /**
-   * Logout user
+   * Retrieve authentication tokens from secure storage
    */
-  async logout(): Promise<void> {
-    await storage.removeToken();
-    await storage.removeUserData();
+  async getTokens(): Promise<Tokens | null> {
+    try {
+      const credentials = await Keychain.getGenericPassword({
+        service: 'com.bgos.tokens',
+      });
+
+      if (credentials) {
+        return JSON.parse(credentials.password);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error retrieving tokens:', error);
+      return null;
+    }
   }
 
   /**
-   * Check if user is authenticated
+   * Store user data securely
+   */
+  async setUserData(userData: UserData): Promise<void> {
+    try {
+      await Keychain.setGenericPassword(
+        USER_DATA_KEY,
+        JSON.stringify(userData),
+        {
+          service: 'com.bgos.userdata',
+        }
+      );
+    } catch (error) {
+      console.error('Error storing user data:', error);
+      throw new Error('Failed to store user data');
+    }
+  }
+
+  /**
+   * Retrieve user data from secure storage
+   */
+  async getUserData(): Promise<UserData | null> {
+    try {
+      const credentials = await Keychain.getGenericPassword({
+        service: 'com.bgos.userdata',
+      });
+
+      if (credentials) {
+        return JSON.parse(credentials.password);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error retrieving user data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Remove all authentication data from secure storage
+   */
+  async clearAuth(): Promise<void> {
+    try {
+      await Keychain.resetGenericPassword({
+        service: 'com.bgos.tokens',
+      });
+      await Keychain.resetGenericPassword({
+        service: 'com.bgos.userdata',
+      });
+    } catch (error) {
+      console.error('Error clearing auth data:', error);
+      throw new Error('Failed to clear authentication data');
+    }
+  }
+
+  /**
+   * Check if user is authenticated (has valid tokens)
    */
   async isAuthenticated(): Promise<boolean> {
-    const token = await storage.getToken();
-    return !!token;
+    const tokens = await this.getTokens();
+    return tokens !== null && tokens.accessToken !== '';
   }
 
   /**
-   * Get stored token
+   * Login user and store credentials
    */
-  async getToken(): Promise<string | null> {
-    return await storage.getToken();
+  async login(
+    accessToken: string,
+    refreshToken: string,
+    userData: UserData
+  ): Promise<void> {
+    await this.setTokens({ accessToken, refreshToken });
+    await this.setUserData(userData);
   }
 
   /**
-   * Get stored user data
+   * Logout user and clear all stored credentials
    */
-  async getUserData(): Promise<any | null> {
-    return await storage.getUserData();
+  async logout(): Promise<void> {
+    await this.clearAuth();
   }
 }
 
-export const authService = new AuthService();
+export default new AuthService();
