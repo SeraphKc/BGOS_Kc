@@ -65,6 +65,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
     const { showNotification } = useNotification();
     const activeStreamsRef = useRef<MediaStream[]>([]);
     const dispatch = useDispatch();
+    const fetchAndSaveTranscriptRef = useRef<((conversationId: string) => Promise<void>) | null>(null);
 
     const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
     navigator.mediaDevices.getUserMedia = async (constraints) => {
@@ -106,12 +107,12 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             dispatch(clearLiveTranscription());
 
             // Fetch and save transcript if we have a conversation ID
-            if (conversationId) {
+            if (conversationId && fetchAndSaveTranscriptRef.current) {
                 console.log('[VoiceAgent] Natural disconnect detected, fetching transcript...');
                 conversationIdRef.current = null;
 
-                // Call the shared transcript fetching logic
-                fetchAndSaveTranscript(conversationId);
+                // Call the shared transcript fetching logic via ref
+                fetchAndSaveTranscriptRef.current(conversationId);
             }
         },
         onError: (err) => {
@@ -264,6 +265,11 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             setShowError(true);
         }
     }, [fetchTranscript, showInitialState, setHasUserInteracted, handleNewChat, currentChatId, userId, saveChatHistory, updateChatHistory, onTranscriptComplete, showNotification]);
+
+    // Update ref whenever function changes
+    useEffect(() => {
+        fetchAndSaveTranscriptRef.current = fetchAndSaveTranscript;
+    }, [fetchAndSaveTranscript]);
 
     const handleStart = useCallback(async () => {
         try {

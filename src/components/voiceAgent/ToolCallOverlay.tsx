@@ -49,15 +49,15 @@ export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) =
     return (
         <div
             style={{
-                position: 'absolute',
-                top: 20,
-                right: 20,
+                position: 'fixed',
+                bottom: 24,
+                right: 24,
                 zIndex: 1001,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 12,
-                maxWidth: 350,
-                maxHeight: 'calc(100vh - 200px)',
+                gap: 8,
+                maxWidth: 280,
+                maxHeight: 200,
                 overflowY: 'auto',
             }}
         >
@@ -65,84 +65,50 @@ export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) =
                 {displayCalls.map((toolCall) => (
                     <motion.div
                         key={toolCall.tool_call_id}
-                        initial={{ opacity: 0, x: 50, scale: 0.9 }}
+                        initial={{ opacity: 0, x: 20, scale: 0.95 }}
                         animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: 50, scale: 0.9 }}
-                        transition={{ duration: 0.3 }}
+                        exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
                         style={{
-                            background: 'rgba(33, 33, 33, 0.95)',
-                            borderRadius: 12,
-                            padding: 16,
-                            border: `2px solid ${getStatusColor(toolCall.status)}`,
-                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
-                            backdropFilter: 'blur(10px)',
+                            background: 'rgba(38, 38, 36, 0.92)',
+                            borderRadius: 8,
+                            padding: 10,
+                            border: `1px solid ${getBorderColor(toolCall.status)}`,
+                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
                         }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#fff' }}>
-                                {toolCall.tool_name}
-                            </h4>
-                            <StatusBadge status={toolCall.status} />
-                        </div>
-
-                        {toolCall.tool_input && (
-                            <div style={{ marginBottom: 8 }}>
-                                <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>Input:</div>
-                                <pre
-                                    style={{
-                                        fontSize: 11,
-                                        color: '#fff',
-                                        background: 'rgba(0, 0, 0, 0.3)',
-                                        padding: 8,
-                                        borderRadius: 6,
-                                        margin: 0,
-                                        maxHeight: 100,
-                                        overflowY: 'auto',
-                                        whiteSpace: 'pre-wrap',
-                                        wordBreak: 'break-word',
-                                    }}
-                                >
-                                    {JSON.stringify(toolCall.tool_input, null, 2)}
-                                </pre>
-                            </div>
-                        )}
-
-                        {toolCall.tool_output && (
-                            <div>
-                                <div style={{ fontSize: 11, color: '#999', marginBottom: 4 }}>Output:</div>
-                                <pre
-                                    style={{
-                                        fontSize: 11,
-                                        color: '#4ade80',
-                                        background: 'rgba(0, 0, 0, 0.3)',
-                                        padding: 8,
-                                        borderRadius: 6,
-                                        margin: 0,
-                                        maxHeight: 100,
-                                        overflowY: 'auto',
-                                        whiteSpace: 'pre-wrap',
-                                        wordBreak: 'break-word',
-                                    }}
-                                >
-                                    {JSON.stringify(toolCall.tool_output, null, 2)}
-                                </pre>
-                            </div>
-                        )}
-
-                        {toolCall.error && (
-                            <div style={{ marginTop: 8 }}>
-                                <div style={{ fontSize: 11, color: '#f87171', fontWeight: 500 }}>
-                                    Error: {toolCall.error}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {toolCall.status === 'pending' && <Spinner />}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    color: '#E8E6E3',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {toolCall.tool_name}
+                                </div>
+                                <div style={{
+                                    fontSize: 10,
+                                    color: getStatusTextColor(toolCall.status),
+                                    marginTop: 2
+                                }}>
+                                    {getStatusText(toolCall.status)}
                                 </div>
                             </div>
-                        )}
-
-                        {toolCall.status === 'pending' && (
-                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <Spinner />
-                                <span style={{ fontSize: 11, color: '#ffe01b' }}>Executing...</span>
-                            </div>
-                        )}
+                            {toolCall.status === 'completed' && (
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <path d="M13.5 4L6 11.5L2.5 8" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            )}
+                            {toolCall.status === 'error' && (
+                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <path d="M12 4L4 12M4 4l8 8" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            )}
+                        </div>
                     </motion.div>
                 ))}
             </AnimatePresence>
@@ -151,30 +117,40 @@ export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) =
 };
 
 /**
- * StatusBadge
- * Small badge showing tool call status with color coding
+ * Helper: Get status text
  */
-const StatusBadge: React.FC<{ status: 'pending' | 'completed' | 'error' }> = ({ status }) => {
-    return (
-        <span
-            style={{
-                fontSize: 10,
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                padding: '4px 8px',
-                borderRadius: 6,
-                background: getStatusBackground(status),
-                color: getStatusColor(status),
-            }}
-        >
-            {status}
-        </span>
-    );
-};
+function getStatusText(status: 'pending' | 'completed' | 'error'): string {
+    switch (status) {
+        case 'pending':
+            return 'Running...';
+        case 'completed':
+            return 'Completed';
+        case 'error':
+            return 'Failed';
+        default:
+            return '';
+    }
+}
+
+/**
+ * Helper: Get status text color (muted theme colors)
+ */
+function getStatusTextColor(status: 'pending' | 'completed' | 'error'): string {
+    switch (status) {
+        case 'pending':
+            return '#B8B6A7'; // Muted yellow
+        case 'completed':
+            return '#6B9B6E'; // Muted green
+        case 'error':
+            return '#B87171'; // Muted red
+        default:
+            return '#999';
+    }
+}
 
 /**
  * Spinner
- * Simple loading spinner animation
+ * Simple loading spinner animation (themed)
  */
 const Spinner: React.FC = () => {
     return (
@@ -182,10 +158,10 @@ const Spinner: React.FC = () => {
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
             style={{
-                width: 14,
-                height: 14,
-                border: '2px solid rgba(255, 224, 27, 0.2)',
-                borderTop: '2px solid #ffe01b',
+                width: 12,
+                height: 12,
+                border: '2px solid rgba(184, 182, 167, 0.2)',
+                borderTop: '2px solid #B8B6A7',
                 borderRadius: '50%',
             }}
         />
@@ -193,33 +169,17 @@ const Spinner: React.FC = () => {
 };
 
 /**
- * Helper: Get status color
+ * Helper: Get border color (subtle theme colors)
  */
-function getStatusColor(status: 'pending' | 'completed' | 'error'): string {
+function getBorderColor(status: 'pending' | 'completed' | 'error'): string {
     switch (status) {
         case 'pending':
-            return '#ffe01b'; // Yellow
+            return 'rgba(184, 182, 167, 0.3)'; // Muted yellow
         case 'completed':
-            return '#4ade80'; // Green
+            return 'rgba(107, 155, 110, 0.3)'; // Muted green
         case 'error':
-            return '#f87171'; // Red
+            return 'rgba(184, 113, 113, 0.3)'; // Muted red
         default:
-            return '#999';
-    }
-}
-
-/**
- * Helper: Get status background
- */
-function getStatusBackground(status: 'pending' | 'completed' | 'error'): string {
-    switch (status) {
-        case 'pending':
-            return 'rgba(255, 224, 27, 0.15)';
-        case 'completed':
-            return 'rgba(74, 222, 128, 0.15)';
-        case 'error':
-            return 'rgba(248, 113, 113, 0.15)';
-        default:
-            return 'rgba(153, 153, 153, 0.15)';
+            return 'rgba(153, 153, 153, 0.2)';
     }
 }
