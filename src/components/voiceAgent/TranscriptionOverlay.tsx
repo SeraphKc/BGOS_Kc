@@ -45,7 +45,7 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ user
                     }}
                     style={{
                         position: 'fixed',
-                        bottom: '20%', // Relative to viewport height, above controls
+                        bottom: 140, // Above controls (footer is ~112px tall: 24px padding + 64px buttons + 24px padding)
                         left: '50%',
                         transform: 'translateX(-50%)',
                         zIndex: 999,

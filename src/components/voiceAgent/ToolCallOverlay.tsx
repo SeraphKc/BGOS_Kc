@@ -48,6 +48,7 @@ export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) =
 
     return (
         <div
+            className="my-scrollbar"
             style={{
                 position: 'fixed',
                 bottom: 24,
@@ -59,6 +60,7 @@ export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) =
                 maxWidth: 280,
                 maxHeight: 200,
                 overflowY: 'auto',
+                scrollBehavior: 'smooth',
             }}
         >
             <AnimatePresence>

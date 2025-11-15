@@ -92,28 +92,14 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         },
         onDisconnect: () => {
             console.log('[VoiceAgent] ElevenLabs conversation disconnected');
-
-            // Store conversation ID before clearing
-            const conversationId = conversationIdRef.current;
-
             if (status !== 'idle') {
                 setStatus('idle');
                 setIsPaused(false);
                 cleanupStream();
             }
-
             // Clear Redux state on disconnect
             dispatch(clearToolCalls());
             dispatch(clearLiveTranscription());
-
-            // Fetch and save transcript if we have a conversation ID
-            if (conversationId && fetchAndSaveTranscriptRef.current) {
-                console.log('[VoiceAgent] Natural disconnect detected, fetching transcript...');
-                conversationIdRef.current = null;
-
-                // Call the shared transcript fetching logic via ref
-                fetchAndSaveTranscriptRef.current(conversationId);
-            }
         },
         onError: (err) => {
             console.error('[VoiceAgent] Conversation error:', err);
