@@ -30,6 +30,13 @@ export const ConversationPage: React.FC<ConversationPageProps> = ({
 }) => {
     // Get voice state from Redux
     const { toolCalls, liveTranscription } = useSelector((state: RootState) => state.voice);
+
+    // Debug logging
+    React.useEffect(() => {
+        console.log('[ConversationPage] Tool calls:', toolCalls);
+        console.log('[ConversationPage] Live transcription:', liveTranscription);
+    }, [toolCalls, liveTranscription]);
+
     return (
         <motion.div
             initial={{ opacity: 0 }}

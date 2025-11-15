@@ -1,0 +1,29 @@
+*** Begin Patch
+*** Update File: apps/mobile/src/components/chat/MessageBubble.tsx
+@@
+ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+   const isUser = message.sender === 'user';
+   const user = useSelector((state: RootState) => state.user.currentUser);
++
++  const logUserTextRender = (text: string) => {
++    try {
++      const flattenedStyle = StyleSheet.flatten(styles.userText);
++      console.log('MessageBubble - About to render user text', {
++        textPreview: text.slice(0, 100),
++        textLength: text.length,
++        flattenedStyle,
++      });
++    } catch (error) {
++      console.error('MessageBubble - Failed to log user text render context', error);
++    }
++  };
+@@
+-  const renderText = (text: string, isUserMessage: boolean) => {
+-    if (hasMarkdown(text)) {
++  const renderText = (text: string, isUserMessage: boolean) => {
++    if (isUserMessage) {
++      logUserTextRender(text);
++    }
++
++    if (hasMarkdown(text)) {
+*** End Patch

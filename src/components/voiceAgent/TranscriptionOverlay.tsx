@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TranscriptionOverlayProps {
@@ -8,135 +8,72 @@ interface TranscriptionOverlayProps {
 
 /**
  * TranscriptionOverlay
- * Displays live transcription at the bottom of the conversation page (subtitle style)
+ * Minimalistic caption-style transcription display
+ * Fades in/out automatically, positioned below visualizer
  */
 export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ userText, agentText }) => {
-    const hasContent = userText || agentText;
+    const [displayText, setDisplayText] = useState<string>('');
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        // Determine which text to display (prioritize agent text)
+        const newText = agentText || userText;
+
+        if (newText && newText !== displayText) {
+            setDisplayText(newText);
+            setIsVisible(true);
+
+            // Auto fade-out after 3 seconds
+            const timer = setTimeout(() => {
+                setIsVisible(false);
+            }, 3000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [userText, agentText]);
 
     return (
         <AnimatePresence>
-            {hasContent && (
+            {isVisible && displayText && (
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 20 }}
-                    transition={{ duration: 0.3 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{
+                        duration: 0.4,
+                        ease: 'easeOut'
+                    }}
                     style={{
                         position: 'absolute',
-                        bottom: 100, // Above the voice controls
-                        left: 0,
-                        right: 0,
-                        zIndex: 1001,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        padding: '0 40px',
+                        bottom: 140, // Below visualizer, above controls
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 999,
                         pointerEvents: 'none',
+                        maxWidth: '80%',
+                        textAlign: 'center',
                     }}
                 >
                     <div
                         style={{
-                            background: 'rgba(0, 0, 0, 0.85)',
-                            borderRadius: 12,
-                            padding: '16px 24px',
-                            maxWidth: 800,
-                            width: '100%',
-                            backdropFilter: 'blur(10px)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+                            fontSize: 16,
+                            fontWeight: 500,
+                            color: agentText ? '#ffe01b' : '#ffffff',
+                            lineHeight: 1.6,
+                            textShadow: '0 2px 8px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.9)',
+                            padding: '8px 16px',
+                            maxWidth: 700,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2, // Limit to 2 lines
+                            WebkitBoxOrient: 'vertical',
                         }}
                     >
-                        {userText && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                style={{
-                                    marginBottom: agentText ? 12 : 0,
-                                }}
-                            >
-                                <div style={{ fontSize: 11, color: '#999', marginBottom: 4, fontWeight: 600 }}>
-                                    YOU
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: 15,
-                                        color: '#fff',
-                                        lineHeight: 1.5,
-                                    }}
-                                >
-                                    {userText}
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {agentText && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                            >
-                                <div style={{ fontSize: 11, color: '#ffe01b', marginBottom: 4, fontWeight: 600 }}>
-                                    ASSISTANT
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: 15,
-                                        color: '#ffe01b',
-                                        lineHeight: 1.5,
-                                        fontWeight: 500,
-                                    }}
-                                >
-                                    {agentText}
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Typing indicator when agent is speaking */}
-                        {agentText && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 0.5 }}
-                                style={{
-                                    display: 'flex',
-                                    gap: 4,
-                                    marginTop: 8,
-                                    alignItems: 'center',
-                                }}
-                            >
-                                <TypingDot delay={0} />
-                                <TypingDot delay={0.2} />
-                                <TypingDot delay={0.4} />
-                            </motion.div>
-                        )}
+                        {displayText}
                     </div>
                 </motion.div>
             )}
         </AnimatePresence>
-    );
-};
-
-/**
- * TypingDot
- * Animated dot for typing indicator
- */
-const TypingDot: React.FC<{ delay: number }> = ({ delay }) => {
-    return (
-        <motion.div
-            animate={{
-                scale: [1, 1.3, 1],
-                opacity: [0.5, 1, 0.5],
-            }}
-            transition={{
-                duration: 1,
-                repeat: Infinity,
-                delay,
-            }}
-            style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#ffe01b',
-            }}
-        />
     );
 };
