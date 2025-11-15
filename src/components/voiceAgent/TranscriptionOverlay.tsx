@@ -46,12 +46,12 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ user
                     style={{
                         position: 'fixed',
                         bottom: 140, // Above controls (footer is ~112px tall: 24px padding + 64px buttons + 24px padding)
-                        left: '50%',
-                        transform: 'translateX(-50%)',
+                        left: 0,
+                        right: 0,
+                        display: 'flex',
+                        justifyContent: 'center',
                         zIndex: 999,
                         pointerEvents: 'none',
-                        maxWidth: '80%',
-                        textAlign: 'center',
                     }}
                 >
                     <div
@@ -62,7 +62,8 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ user
                             lineHeight: 1.6,
                             textShadow: '0 2px 8px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.9)',
                             padding: '8px 16px',
-                            maxWidth: 700,
+                            maxWidth: '80%',
+                            textAlign: 'center',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             display: '-webkit-box',

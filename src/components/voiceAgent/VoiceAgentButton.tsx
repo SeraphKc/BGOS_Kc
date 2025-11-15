@@ -66,6 +66,8 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
     const activeStreamsRef = useRef<MediaStream[]>([]);
     const dispatch = useDispatch();
     const fetchAndSaveTranscriptRef = useRef<((conversationId: string) => Promise<void>) | null>(null);
+    const isHandlingDisconnectRef = useRef<boolean>(false);
+    const handleStopRef = useRef<(() => Promise<void>) | null>(null);
 
     const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
     navigator.mediaDevices.getUserMedia = async (constraints) => {
@@ -92,12 +94,24 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         },
         onDisconnect: () => {
             console.log('[VoiceAgent] ElevenLabs conversation disconnected');
-            if (status !== 'idle') {
-                setStatus('idle');
-                setIsPaused(false);
-                cleanupStream();
+            console.log('[VoiceAgent] isHandlingDisconnectRef.current:', isHandlingDisconnectRef.current);
+            console.log('[VoiceAgent] conversationIdRef.current:', conversationIdRef.current);
+
+            // If we're not already handling a disconnect AND there's a conversation ID
+            // (i.e., this is a natural WebSocket close, not from clicking End Call)
+            if (!isHandlingDisconnectRef.current && conversationIdRef.current) {
+                console.log('[VoiceAgent] Natural WebSocket close detected, triggering handleStop');
+                // Mimic clicking the end call button by calling handleStop
+                // We need to use a slight delay to ensure the callback is properly set up
+                setTimeout(() => {
+                    console.log('[VoiceAgent] Calling handleStopRef.current');
+                    handleStopRef.current?.();
+                }, 0);
+            } else {
+                console.log('[VoiceAgent] Skipping handleStop call - already handling or no conversation');
             }
-            // Clear Redux state on disconnect
+
+            // Always clear Redux state on disconnect
             dispatch(clearToolCalls());
             dispatch(clearLiveTranscription());
         },
@@ -335,6 +349,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         try {
             console.log('Stopping voice agent...');
             setIsStoppingCall(true);
+            isHandlingDisconnectRef.current = true; // Set flag to prevent onDisconnect from calling handleStop again
 
             setStatus('idle');
             setIsPaused(false);
@@ -350,11 +365,15 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
                 // End session and fetch transcript in background
                 conversation.endSession().then(async () => {
                     await fetchAndSaveTranscript(conversationId);
+                    isHandlingDisconnectRef.current = false; // Reset flag after completion
                 }).catch(err => {
                     console.error('Failed to end session:', err);
                     setError('Failed to end conversation properly');
                     setShowError(true);
+                    isHandlingDisconnectRef.current = false; // Reset flag on error
                 });
+            } else {
+                isHandlingDisconnectRef.current = false; // Reset flag if no conversation ID
             }
         } catch (err) {
             console.error('Failed to stop conversation:', err);
@@ -364,10 +383,16 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             setIsPaused(false);
             cleanupStream();
             conversationIdRef.current = null;
+            isHandlingDisconnectRef.current = false; // Reset flag on error
         } finally {
             setIsStoppingCall(false);
         }
     }, [conversation, cleanupStream, fetchAndSaveTranscript]);
+
+    // Update ref whenever handleStop changes
+    useEffect(() => {
+        handleStopRef.current = handleStop;
+    }, [handleStop]);
 
     const handlePause = useCallback(async () => {
         try {
