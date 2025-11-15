@@ -4,6 +4,7 @@ import {AnimatePresence, motion} from 'framer-motion';
 import {useConversation} from '@11labs/react';
 import {useTranscriptFetch} from '../../hooks/useTranscriptFetch';
 import {useNotification} from '../../hooks/useNotification';
+import {useVoiceWebSocket} from '../../hooks/useVoiceWebSocket';
 import voiceSquareIcon from '../../assets/icons/voice-square.svg';
 import {ChatHistory} from "../../types/model/ChatHistory";
 import {Assistant} from "../../types/model/Assistant";
@@ -55,6 +56,11 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
     const { fetchTranscript } = useTranscriptFetch();
     const { showNotification } = useNotification();
     const activeStreamsRef = useRef<MediaStream[]>([]);
+
+    // WebSocket connection for real-time events
+    const { connect: connectWebSocket, disconnect: disconnectWebSocket } = useVoiceWebSocket(
+        'sk_3c3c83bdce7a69742837261149687cf4c7611c10a09f5804'
+    );
 
     const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
     navigator.mediaDevices.getUserMedia = async (constraints) => {
@@ -147,6 +153,10 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
                 const convId = await conversation.startSession();
                 conversationIdRef.current = convId;
                 console.log('New conversation started with ID:', convId);
+
+                // Connect WebSocket for real-time events
+                console.log('Connecting WebSocket for conversation:', convId);
+                connectWebSocket(convId);
             } else {
                 // Note: resumeSession might not be available in this version
                 console.log('Resuming conversation with ID:', conversationIdRef.current);
@@ -177,17 +187,21 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             setStatus('error');
             cleanupStream();
         }
-    }, [conversation, status]);
+    }, [conversation, status, connectWebSocket]);
 
     const handleStop = useCallback(async () => {
         try {
             console.log('Stopping voice agent...');
             setIsStoppingCall(true);
 
+            // Disconnect WebSocket
+            console.log('Disconnecting WebSocket...');
+            disconnectWebSocket();
+
             setStatus('idle');
             setIsPaused(false);
             cleanupStream();
-            
+
             // Store conversation ID for async transcript fetching
             const conversationId = conversationIdRef.current;
             conversationIdRef.current = null;
@@ -273,7 +287,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         } finally {
             setIsStoppingCall(false);
         }
-    }, [conversation, fetchTranscript, updateChatHistory, maxDbId]);
+    }, [conversation, fetchTranscript, updateChatHistory, maxDbId, disconnectWebSocket]);
 
     const handlePause = useCallback(async () => {
         try {
