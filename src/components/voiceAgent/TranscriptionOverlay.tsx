@@ -44,7 +44,7 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ user
                         ease: 'easeOut'
                     }}
                     style={{
-                        position: 'absolute',
+                        position: 'fixed',
                         bottom: 140, // Below visualizer, above controls
                         left: '50%',
                         transform: 'translateX(-50%)',

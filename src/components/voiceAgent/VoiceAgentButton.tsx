@@ -143,8 +143,34 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
                 }));
             }, 2000);
         },
-        onDebug: (event) => {
+        onDebug: (event: any) => {
             console.log('[VoiceAgent] Debug event:', event);
+
+            // Handle MCP tool calls (Model Context Protocol)
+            if (event.type === 'mcp_tool_call' && event.mcp_tool_call) {
+                const mcpTool = event.mcp_tool_call;
+                console.log('[VoiceAgent] MCP Tool call detected:', mcpTool);
+
+                // Add tool call to Redux
+                dispatch(addToolCall({
+                    tool_call_id: mcpTool.tool_call_id || `mcp_${Date.now()}`,
+                    tool_name: mcpTool.tool_name || mcpTool.name || 'Unknown Tool',
+                    tool_input: mcpTool.arguments || mcpTool.parameters || {},
+                    status: 'pending',
+                    timestamp: new Date().toISOString(),
+                }));
+
+                // Simulate completion after 2 seconds (replace with actual tool execution)
+                setTimeout(() => {
+                    dispatch(updateToolCall({
+                        tool_call_id: mcpTool.tool_call_id || `mcp_${Date.now()}`,
+                        updates: {
+                            tool_output: { success: true, message: 'MCP Tool executed successfully' },
+                            status: 'completed',
+                        },
+                    }));
+                }, 2000);
+            }
         }
     });
 
