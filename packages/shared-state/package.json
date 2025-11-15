@@ -10,12 +10,12 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@bgos/shared-types": "workspace:*",
     "@bgos/shared-services": "workspace:*",
+    "@bgos/shared-types": "workspace:*",
     "@reduxjs/toolkit": "^2.0.0",
     "redux": "^5.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.0"
+    "typescript": "^5.9.3"
   }
 }

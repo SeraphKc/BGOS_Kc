@@ -15,6 +15,16 @@ export type VoiceStatus =
   | 'playing'
   | 'error';
 
+export interface ToolCall {
+  tool_call_id: string;
+  tool_name: string;
+  tool_input: any;
+  tool_output?: any;
+  status: 'pending' | 'completed' | 'error';
+  error?: string;
+  timestamp: string;
+}
+
 export interface VoiceState {
   status: VoiceStatus;
   isPaused: boolean;
@@ -30,6 +40,11 @@ export interface VoiceState {
     message: string;
     timestamp: string;
   }>;
+  toolCalls: ToolCall[]; // Active tool calls during conversation
+  liveTranscription: {
+    user: string;
+    agent: string;
+  };
 }
 
 const initialState: VoiceState = {
@@ -43,6 +58,11 @@ const initialState: VoiceState = {
   error: null,
   recordingStartTime: null,
   transcriptMessages: [],
+  toolCalls: [],
+  liveTranscription: {
+    user: '',
+    agent: '',
+  },
 };
 
 const voiceSlice = createSlice({
@@ -158,6 +178,38 @@ const voiceSlice = createSlice({
     ) => {
       state.conversationId = action.payload.conversationId;
     },
+
+    // Tool call actions
+    addToolCall: (state, action: PayloadAction<ToolCall>) => {
+      state.toolCalls.push(action.payload);
+    },
+
+    updateToolCall: (
+      state,
+      action: PayloadAction<{ tool_call_id: string; updates: Partial<ToolCall> }>
+    ) => {
+      const toolCall = state.toolCalls.find((tc) => tc.tool_call_id === action.payload.tool_call_id);
+      if (toolCall) {
+        Object.assign(toolCall, action.payload.updates);
+      }
+    },
+
+    clearToolCalls: (state) => {
+      state.toolCalls = [];
+    },
+
+    // Live transcription actions
+    setLiveUserTranscription: (state, action: PayloadAction<string>) => {
+      state.liveTranscription.user = action.payload;
+    },
+
+    setLiveAgentTranscription: (state, action: PayloadAction<string>) => {
+      state.liveTranscription.agent = action.payload;
+    },
+
+    clearLiveTranscription: (state) => {
+      state.liveTranscription = { user: '', agent: '' };
+    },
   },
 });
 
@@ -180,6 +232,12 @@ export const {
   setAgentSpeaking,
   setTranscriptLoading,
   setConversationMetadata,
+  addToolCall,
+  updateToolCall,
+  clearToolCalls,
+  setLiveUserTranscription,
+  setLiveAgentTranscription,
+  clearLiveTranscription,
 } = voiceSlice.actions;
 
 export default voiceSlice.reducer;

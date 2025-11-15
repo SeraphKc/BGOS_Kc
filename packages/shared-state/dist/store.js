@@ -4,6 +4,7 @@ import assistantsReducer from './slices/AssistantSlice';
 import chatsReducer from './slices/ChatSlice';
 import chatHistoryReducer from './slices/ChatHistorySlice';
 import uiReducer from './slices/UISlice';
+import voiceReducer from './slices/voiceSlice';
 export const createStore = () => {
     return configureStore({
         reducer: {
@@ -12,6 +13,7 @@ export const createStore = () => {
             chats: chatsReducer,
             chatHistory: chatHistoryReducer,
             ui: uiReducer,
+            voice: voiceReducer,
         },
     });
 };
