@@ -23,10 +23,10 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ user
             setDisplayText(newText);
             setIsVisible(true);
 
-            // Auto fade-out after 3 seconds
+            // Auto fade-out after 5 seconds (increased from 3)
             const timer = setTimeout(() => {
                 setIsVisible(false);
-            }, 3000);
+            }, 5000);
 
             return () => clearTimeout(timer);
         }
@@ -45,7 +45,7 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({ user
                     }}
                     style={{
                         position: 'fixed',
-                        bottom: 140, // Below visualizer, above controls
+                        bottom: '20%', // Relative to viewport height, above controls
                         left: '50%',
                         transform: 'translateX(-50%)',
                         zIndex: 999,

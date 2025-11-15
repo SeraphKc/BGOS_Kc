@@ -161,14 +161,22 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         onDebug: (event: any) => {
             console.log('[VoiceAgent] Debug event:', event);
 
+            // Handle tentative agent responses for faster transcription display
+            if (event.type === 'tentative_agent_response' && event.response) {
+                dispatch(setLiveAgentTranscription(event.response));
+            }
+
             // Handle MCP tool calls (Model Context Protocol)
             if (event.type === 'mcp_tool_call' && event.mcp_tool_call) {
                 const mcpTool = event.mcp_tool_call;
                 console.log('[VoiceAgent] MCP Tool call detected:', mcpTool);
 
-                // Add tool call to Redux
+                // Generate stable ID from tool data
+                const toolCallId = mcpTool.tool_call_id || mcpTool.call_id || `${mcpTool.tool_name || mcpTool.name}_${mcpTool.timestamp || Date.now()}`;
+
+                // Add tool call to Redux (Redux slice handles deduplication)
                 dispatch(addToolCall({
-                    tool_call_id: mcpTool.tool_call_id || `mcp_${Date.now()}`,
+                    tool_call_id: toolCallId,
                     tool_name: mcpTool.tool_name || mcpTool.name || 'Unknown Tool',
                     tool_input: mcpTool.arguments || mcpTool.parameters || {},
                     status: 'pending',
@@ -178,7 +186,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
                 // Simulate completion after 2 seconds (replace with actual tool execution)
                 setTimeout(() => {
                     dispatch(updateToolCall({
-                        tool_call_id: mcpTool.tool_call_id || `mcp_${Date.now()}`,
+                        tool_call_id: toolCallId,
                         updates: {
                             tool_output: { success: true, message: 'MCP Tool executed successfully' },
                             status: 'completed',

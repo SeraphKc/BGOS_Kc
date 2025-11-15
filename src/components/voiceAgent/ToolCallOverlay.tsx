@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ToolCall } from '@bgos/shared-state/dist/slices/voiceSlice';
 
@@ -9,9 +9,42 @@ interface ToolCallOverlayProps {
 /**
  * ToolCallOverlay
  * Displays active tool calls as floating cards on the conversation page
+ * Auto-removes completed/errored calls after 3 seconds
  */
 export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) => {
-    if (toolCalls.length === 0) return null;
+    const [visibleCalls, setVisibleCalls] = useState<string[]>([]);
+
+    // Track which tool calls should be visible
+    useEffect(() => {
+        const newVisible = new Set(visibleCalls);
+        const timers: NodeJS.Timeout[] = [];
+
+        toolCalls.forEach((call) => {
+            // Add all calls to visible set initially
+            if (!newVisible.has(call.tool_call_id)) {
+                newVisible.add(call.tool_call_id);
+            }
+
+            // Auto-remove completed or errored calls after 3 seconds
+            if ((call.status === 'completed' || call.status === 'error') && newVisible.has(call.tool_call_id)) {
+                const timer = setTimeout(() => {
+                    setVisibleCalls(prev => prev.filter(id => id !== call.tool_call_id));
+                }, 3000);
+                timers.push(timer);
+            }
+        });
+
+        setVisibleCalls(Array.from(newVisible));
+
+        return () => {
+            timers.forEach(timer => clearTimeout(timer));
+        };
+    }, [toolCalls]);
+
+    // Filter to only show visible calls
+    const displayCalls = toolCalls.filter(call => visibleCalls.includes(call.tool_call_id));
+
+    if (displayCalls.length === 0) return null;
 
     return (
         <div
@@ -29,7 +62,7 @@ export const ToolCallOverlay: React.FC<ToolCallOverlayProps> = ({ toolCalls }) =
             }}
         >
             <AnimatePresence>
-                {toolCalls.map((toolCall) => (
+                {displayCalls.map((toolCall) => (
                     <motion.div
                         key={toolCall.tool_call_id}
                         initial={{ opacity: 0, x: 50, scale: 0.9 }}
