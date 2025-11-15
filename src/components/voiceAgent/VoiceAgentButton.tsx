@@ -2,14 +2,22 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Loader2} from 'lucide-react';
 import {AnimatePresence, motion} from 'framer-motion';
 import {useConversation} from '@11labs/react';
+import {useDispatch} from 'react-redux';
 import {useTranscriptFetch} from '../../hooks/useTranscriptFetch';
 import {useNotification} from '../../hooks/useNotification';
-import {useVoiceWebSocket} from '../../hooks/useVoiceWebSocket';
 import voiceSquareIcon from '../../assets/icons/voice-square.svg';
 import {ChatHistory} from "../../types/model/ChatHistory";
 import {Assistant} from "../../types/model/Assistant";
 import {AssistantAndChatDto} from "../../types/n8n/AssistantsWithChatsDto";
 import {saveChatHistory} from "../../services/ChatHistoryCRUDService";
+import {
+    addToolCall,
+    updateToolCall,
+    setLiveUserTranscription,
+    setLiveAgentTranscription,
+    clearToolCalls,
+    clearLiveTranscription,
+} from '@bgos/shared-state/dist/slices/voiceSlice';
 
 type Status = 'idle' | 'connecting' | 'active' | 'error' | 'thinking';
 
@@ -56,11 +64,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
     const { fetchTranscript } = useTranscriptFetch();
     const { showNotification } = useNotification();
     const activeStreamsRef = useRef<MediaStream[]>([]);
-
-    // WebSocket connection for real-time events
-    const { connect: connectWebSocket, disconnect: disconnectWebSocket } = useVoiceWebSocket(
-        'sk_3c3c83bdce7a69742837261149687cf4c7611c10a09f5804'
-    );
+    const dispatch = useDispatch();
 
     const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
     navigator.mediaDevices.getUserMedia = async (constraints) => {
@@ -78,29 +82,69 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         apiKey: 'sk_3c3c83bdce7a69742837261149687cf4c7611c10a09f5804',
         agentId: assistant?.s2sToken ,
         onConnect: () => {
-            console.log('ElevenLabs conversation connected');
+            console.log('[VoiceAgent] ElevenLabs conversation connected');
             setStatus('active');
             setError(null);
+            // Clear previous tool calls and transcriptions
+            dispatch(clearToolCalls());
+            dispatch(clearLiveTranscription());
         },
         onDisconnect: () => {
-            console.log('ElevenLabs conversation disconnected');
+            console.log('[VoiceAgent] ElevenLabs conversation disconnected');
             if (status !== 'idle') {
                 setStatus('idle');
                 cleanupStream();
             }
+            // Clear Redux state on disconnect
+            dispatch(clearToolCalls());
+            dispatch(clearLiveTranscription());
         },
         onError: (err) => {
-            console.error('Conversation error:', err);
+            console.error('[VoiceAgent] Conversation error:', err);
             setError('Connection error occurred');
             setShowError(true);
             setStatus('error');
             cleanupStream();
         },
-        onMessage: (message) => {
-            console.log('Received message from ElevenLabs:', message);
+        onMessage: (props) => {
+            console.log('[VoiceAgent] Received message:', props);
+
+            // Dispatch transcription to Redux
+            if (props.source === 'user') {
+                dispatch(setLiveUserTranscription(props.message));
+            } else {
+                dispatch(setLiveAgentTranscription(props.message));
+            }
+
             if (status === 'thinking') {
                 setStatus('active');
             }
+        },
+        onUnhandledClientToolCall: (toolCall) => {
+            console.log('[VoiceAgent] Tool call received:', toolCall);
+
+            // Add tool call to Redux
+            dispatch(addToolCall({
+                tool_call_id: toolCall.tool_call_id,
+                tool_name: toolCall.tool_name,
+                tool_input: toolCall.parameters,
+                status: 'pending',
+                timestamp: new Date().toISOString(),
+            }));
+
+            // Simulate completion after 2 seconds (replace with actual tool execution)
+            setTimeout(() => {
+                dispatch(updateToolCall({
+                    tool_call_id: toolCall.tool_call_id,
+                    updates: {
+                        tool_output: { success: true, message: 'Tool executed successfully' },
+                        status: 'completed',
+                    },
+                }));
+            }, 2000);
+        },
+        onDebug: (event) => {
+            console.log('[VoiceAgent] Debug event:', event);
         }
     });
 
@@ -153,10 +197,6 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
                 const convId = await conversation.startSession();
                 conversationIdRef.current = convId;
                 console.log('New conversation started with ID:', convId);
-
-                // Connect WebSocket for real-time events
-                console.log('Connecting WebSocket for conversation:', convId);
-                connectWebSocket(convId);
             } else {
                 // Note: resumeSession might not be available in this version
                 console.log('Resuming conversation with ID:', conversationIdRef.current);
@@ -187,16 +227,12 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             setStatus('error');
             cleanupStream();
         }
-    }, [conversation, status, connectWebSocket]);
+    }, [conversation, status]);
 
     const handleStop = useCallback(async () => {
         try {
             console.log('Stopping voice agent...');
             setIsStoppingCall(true);
-
-            // Disconnect WebSocket
-            console.log('Disconnecting WebSocket...');
-            disconnectWebSocket();
 
             setStatus('idle');
             setIsPaused(false);
@@ -287,7 +323,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         } finally {
             setIsStoppingCall(false);
         }
-    }, [conversation, fetchTranscript, updateChatHistory, maxDbId, disconnectWebSocket]);
+    }, [conversation, fetchTranscript, updateChatHistory, maxDbId]);
 
     const handlePause = useCallback(async () => {
         try {
