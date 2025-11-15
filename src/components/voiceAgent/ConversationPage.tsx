@@ -1,7 +1,11 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSelector } from 'react-redux';
 import { VoiceVisualizer } from './VoiceVisualizer';
 import { VoiceControls } from './VoiceControls';
+import { ToolCallOverlay } from './ToolCallOverlay';
+import { TranscriptionOverlay } from './TranscriptionOverlay';
+import { RootState } from '../../config/storeConfig';
 
 interface ConversationPageProps {
     isActive: boolean;
@@ -24,6 +28,8 @@ export const ConversationPage: React.FC<ConversationPageProps> = ({
     onResume,
     onStop
 }) => {
+    // Get voice state from Redux
+    const { toolCalls, liveTranscription } = useSelector((state: RootState) => state.voice);
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -69,6 +75,15 @@ export const ConversationPage: React.FC<ConversationPageProps> = ({
                         display: 'block',
                         background: '#212121',
                     }}
+                />
+
+                {/* Tool call overlay (top-right floating cards) */}
+                <ToolCallOverlay toolCalls={toolCalls} />
+
+                {/* Transcription overlay (bottom subtitle style) */}
+                <TranscriptionOverlay
+                    userText={liveTranscription.user}
+                    agentText={liveTranscription.agent}
                 />
             </div>
 
