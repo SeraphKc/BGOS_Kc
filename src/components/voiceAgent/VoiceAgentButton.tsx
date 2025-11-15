@@ -91,13 +91,28 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         },
         onDisconnect: () => {
             console.log('[VoiceAgent] ElevenLabs conversation disconnected');
+
+            // Store conversation ID before clearing
+            const conversationId = conversationIdRef.current;
+
             if (status !== 'idle') {
                 setStatus('idle');
+                setIsPaused(false);
                 cleanupStream();
             }
+
             // Clear Redux state on disconnect
             dispatch(clearToolCalls());
             dispatch(clearLiveTranscription());
+
+            // Fetch and save transcript if we have a conversation ID
+            if (conversationId) {
+                console.log('[VoiceAgent] Natural disconnect detected, fetching transcript...');
+                conversationIdRef.current = null;
+
+                // Call the shared transcript fetching logic
+                fetchAndSaveTranscript(conversationId);
+            }
         },
         onError: (err) => {
             console.error('[VoiceAgent] Conversation error:', err);
@@ -180,6 +195,67 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             streamRef.current = null;
         }
     }, []);
+
+    // Extract transcript fetching logic to be reusable
+    const fetchAndSaveTranscript = useCallback(async (conversationId: string) => {
+        try {
+            const isNewChat = showInitialState;
+            setHasUserInteracted(true);
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            console.log('Fetching transcript for conversation:', conversationId);
+            const transcript = await fetchTranscript(conversationId);
+
+            if (transcript) {
+                console.log('Received transcript:', transcript);
+
+                let assistantAndChatDto: AssistantAndChatDto;
+                if (isNewChat) {
+                    assistantAndChatDto = await handleNewChat('Speech-to-Speech conversation');
+                }
+
+                const messages: ChatHistory[] = transcript.map(msg => ({
+                    text: msg.message,
+                    sender: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+                    chatId: isNewChat ? assistantAndChatDto.chat.id : currentChatId,
+                    sentDate: new Date().toISOString(),
+                }))
+                .filter(msg => {
+                    const text = msg.text?.trim();
+                    return text !== null && text !== undefined && text !== '';
+                });
+
+                try {
+                    await saveChatHistory(userId, messages);
+                } catch (error) {
+                    console.error('Failed to send messages to backend:', error);
+                    showNotification({
+                        type: 'error',
+                        title: 'Failed to save conversation',
+                        message: 'Your conversation was recorded but could not be saved. Please try again later.',
+                        autoClose: true,
+                        duration: 5000
+                    });
+                }
+
+                updateChatHistory(null, true);
+
+                // Hide transcript loader
+                if (onTranscriptComplete) {
+                    onTranscriptComplete();
+                }
+            } else {
+                console.error('No transcript received');
+                setError('Failed to get conversation transcript');
+                setShowError(true);
+            }
+        } catch (err) {
+            console.error('Failed to fetch transcript:', err);
+            setError('Failed to get conversation transcript');
+            setShowError(true);
+        }
+    }, [fetchTranscript, showInitialState, setHasUserInteracted, handleNewChat, currentChatId, userId, saveChatHistory, updateChatHistory, onTranscriptComplete, showNotification]);
 
     const handleStart = useCallback(async () => {
         try {
@@ -267,71 +343,13 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
             // Store conversation ID for async transcript fetching
             const conversationId = conversationIdRef.current;
             conversationIdRef.current = null;
-            
+
             if (conversationId) {
                 console.log('Ending session for conversation:', conversationId);
-                
-                // Transcript loader will be shown by ChatArea component
-                
+
                 // End session and fetch transcript in background
                 conversation.endSession().then(async () => {
-                    try {
-                        const isNewChat = showInitialState;
-                        setHasUserInteracted(true);
-
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        
-                        console.log('Fetching transcript for conversation:', conversationId);
-                        const transcript = await fetchTranscript(conversationId);
-                        
-                        if (transcript) {
-                            console.log('Received transcript:', transcript);
-
-                            let assistantAndChatDto: AssistantAndChatDto;
-                            if (isNewChat) {
-                                assistantAndChatDto = await handleNewChat('Speech-to-Speech conversation');
-                            }
-
-                            const messages: ChatHistory[] = transcript.map(msg => ({
-                                text: msg.message,
-                                sender: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-                                chatId: isNewChat ? assistantAndChatDto.chat.id : currentChatId,
-                                sentDate: new Date().toISOString(),
-                            }))
-                            .filter(msg => {
-                                const text = msg.text?.trim();
-                                return text !== null && text !== undefined && text !== '';
-                            });
-
-                            try {
-                                await saveChatHistory(userId, messages);
-                            } catch (error) {
-                                console.error('Failed to send messages to backend:', error);
-                                showNotification({
-                                    type: 'error',
-                                    title: 'Failed to save conversation',
-                                    message: 'Your conversation was recorded but could not be saved. Please try again later.',
-                                    autoClose: true,
-                                    duration: 5000
-                                });
-                            }
-
-                            updateChatHistory(null, true);
-                            
-                            // Hide transcript loader
-                            if (onTranscriptComplete) {
-                                onTranscriptComplete();
-                            }
-                        } else {
-                            console.error('No transcript received');
-                            setError('Failed to get conversation transcript');
-                            setShowError(true);
-                        }
-                    } catch (err) {
-                        console.error('Failed to fetch transcript:', err);
-                        setError('Failed to get conversation transcript');
-                        setShowError(true);
-                    }
+                    await fetchAndSaveTranscript(conversationId);
                 }).catch(err => {
                     console.error('Failed to end session:', err);
                     setError('Failed to end conversation properly');
@@ -349,7 +367,7 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
         } finally {
             setIsStoppingCall(false);
         }
-    }, [conversation, fetchTranscript, updateChatHistory, maxDbId]);
+    }, [conversation, cleanupStream, fetchAndSaveTranscript]);
 
     const handlePause = useCallback(async () => {
         try {
