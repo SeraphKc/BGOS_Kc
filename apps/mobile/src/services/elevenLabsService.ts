@@ -13,6 +13,37 @@ export interface ConversationTranscript {
   transcript: TranscriptMessage[];
 }
 
+interface ConversationTokenResponse {
+  token?: string;
+}
+
+export const fetchConversationToken = async (agentId: string): Promise<string> => {
+  const url =
+    `${ELEVENLABS_API_BASE}/convai/conversation/token?agent_id=${encodeURIComponent(agentId)}`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'xi-api-key': ELEVENLABS_API_KEY,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to fetch conversation token: ${response.status} ${errorText || response.statusText}`
+    );
+  }
+
+  const data = (await response.json()) as ConversationTokenResponse;
+
+  if (!data?.token) {
+    throw new Error('Conversation token missing from ElevenLabs response');
+  }
+
+  return data.token;
+};
+
 export const fetchConversationTranscript = async (
   conversationId: string,
   maxRetries: number = 10

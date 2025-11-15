@@ -30,6 +30,9 @@ export const VoiceAgentScreen: React.FC = () => {
     state.assistants.list.find((a) => a.id === state.assistants.selectedAssistantId)
   );
 
+  const assistantTokenRef = useRef<string | undefined>(selectedAssistant?.s2sToken);
+  const assistantNameRef = useRef<string | undefined>(selectedAssistant?.name);
+
   const {
     status,
     error,
@@ -66,47 +69,63 @@ export const VoiceAgentScreen: React.FC = () => {
     requestPermissionRef.current = requestMicrophonePermission;
   }, [startConversation, stopConversation, requestMicrophonePermission]);
 
+  useEffect(() => {
+    assistantTokenRef.current = selectedAssistant?.s2sToken;
+    assistantNameRef.current = selectedAssistant?.name;
+  }, [selectedAssistant?.s2sToken, selectedAssistant?.name]);
+
   const assistantToken = selectedAssistant?.s2sToken;
   const assistantName = selectedAssistant?.name;
+
 
   // CRITICAL: Use useFocusEffect for navigation-aware lifecycle
   useFocusEffect(
     useCallback(() => {
-      console.log('🟢 VoiceAgentScreen FOCUSED - screen is visible');
+      console.log('dYY? VoiceAgentScreen FOCUSED - screen is visible');
+
+      let cancelled = false;
 
       // Function to start conversation with permission check
       const startWithPermission = async () => {
-        if (!assistantToken) {
-          console.error('🔴 No s2sToken found for assistant');
+        const token = assistantTokenRef.current;
+        const name = assistantNameRef.current;
+
+        if (!token) {
+          console.error('dY"' No s2sToken found for assistant');
           setPermissionError('Assistant configuration missing');
           return;
         }
 
         try {
-          console.log('🟡 Requesting microphone permission...');
+          console.log('dYY? Requesting microphone permission...');
           setIsRequestingPermission(true);
 
           const hasPermission = await requestPermissionRef.current();
 
           setIsRequestingPermission(false);
-          console.log('🟡 Microphone permission result:', hasPermission);
+          console.log('dYY? Microphone permission result:', hasPermission);
 
           if (!hasPermission) {
-            console.error('🔴 Microphone permission denied');
+            console.error('dY"' Microphone permission denied');
             setPermissionError('Microphone permission is required for voice conversations');
             return;
           }
 
-          console.log('🟢 Starting voice conversation with agent:', assistantName);
-          console.log('🟢 Agent s2sToken:', assistantToken.substring(0, 20) + '...');
+          console.log('dYY? Starting voice conversation with agent:', name);
+          console.log('dYY? Agent s2sToken:', token.substring(0, 20) + '...');
 
-          await startConversationRef.current(assistantToken);
+          if (cancelled) {
+            console.log('dYY? Start request cancelled, skipping startConversation call');
+            return;
+          }
+
+          await startConversationRef.current(token);
           hasStartedRef.current = true;
 
-          console.log('✅ Voice conversation started successfully');
+          console.log('?o. Voice conversation started successfully');
           setPermissionError(undefined);
         } catch (err) {
-          console.error('🔴 Failed to start conversation:', err);
+          console.error('dY"' Failed to start conversation:', err');
           setPermissionError('Failed to start voice conversation');
         }
       };
@@ -116,20 +135,21 @@ export const VoiceAgentScreen: React.FC = () => {
 
       // Cleanup: Stop conversation when screen loses focus (navigating away or unmounting)
       return () => {
-        console.log('🟣 VoiceAgentScreen BLURRED - screen lost focus, stopping conversation');
+        cancelled = true;
+        console.log('dYY? VoiceAgentScreen BLURRED - screen lost focus, stopping conversation');
         if (!hasStartedRef.current) {
           return;
         }
 
         stopConversationRef.current()
           .catch((err) => {
-            console.error('🔴 Error stopping conversation:', err);
+            console.error('dY"' Error stopping conversation:', err');
           })
           .finally(() => {
             hasStartedRef.current = false;
           });
       };
-    }, [assistantToken, assistantName])
+    }, [])
   );
 
   // Handle stop and fetch transcript

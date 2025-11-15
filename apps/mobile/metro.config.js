@@ -6,7 +6,12 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = {
   watchFolders: [workspaceRoot],
+  transformer: {
+    babelTransformerPath: require.resolve('react-native-svg-transformer'),
+  },
   resolver: {
+    assetExts: getDefaultConfig(projectRoot).resolver.assetExts.filter(ext => ext !== 'svg'),
+    sourceExts: [...getDefaultConfig(projectRoot).resolver.sourceExts, 'svg'],
     nodeModulesPaths: [
       path.resolve(workspaceRoot, 'node_modules'),
     ],

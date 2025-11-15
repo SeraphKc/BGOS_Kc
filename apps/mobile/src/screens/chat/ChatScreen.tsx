@@ -12,7 +12,8 @@ import AgentSelectorDropdown from '../../components/chat/AgentSelectorDropdown';
 import { fetchChats } from '../../services/chatService';
 import { fetchConversationTranscript } from '../../services/elevenLabsService';
 import { NewChatIcon } from '../../components/icons/NewChatIcon';
-import { useVoiceAgentModal } from '../../contexts/VoiceAgentContext';
+import { useVoiceAgentModal, TranscriptReadyPayload } from '../../contexts/VoiceAgentContext';
+import Logo from '../../assets/logo.svg';
 
 // Time-based greeting function (from desktop ChatArea.tsx)
 const getTimeBasedGreeting = (fullName: string): string => {
@@ -82,7 +83,15 @@ export default function ChatScreen({ route, navigation }: any) {
 
   // Default agent selection for new chats
   useEffect(() => {
+    console.log('🔵 ChatScreen - Default assistant selection check:', {
+      chatId,
+      selectedAssistantId,
+      assistantsCount: assistants.length,
+      shouldSelect: chatId === 'new' && !selectedAssistantId && assistants.length > 0,
+    });
+
     if (chatId === 'new' && !selectedAssistantId && assistants.length > 0) {
+      console.log('🟢 ChatScreen - Auto-selecting first assistant:', assistants[0].id);
       dispatch(AssistantActions.setSelectedAssistant(assistants[0].id));
     }
   }, [chatId, selectedAssistantId, assistants, dispatch]);
@@ -112,13 +121,14 @@ export default function ChatScreen({ route, navigation }: any) {
     }
   }, [filteredMessages.length]);
 
-  const handleSend = async (text: string, files?: any[], voiceData?: any) => {
+  const handleSend = useCallback(async (text: string, files?: any[], voiceData?: any) => {
     console.log('🔵 ChatScreen.handleSend - START', {
       text,
       textLength: text?.length || 0,
       hasFiles: !!(files && files.length > 0),
       hasVoiceData: !!voiceData,
       chatId,
+      selectedAssistantId,
     });
 
     // Check if this is a new chat (needs to be created on backend first)
@@ -211,21 +221,28 @@ export default function ChatScreen({ route, navigation }: any) {
       // Existing chat - send message normally
       await sendMessage(text, files, voiceData);
     }
-  };
+  }, [chatId, selectedAssistantId, createNewChat, sendMessageWithChatId, sendMessage, dispatch, navigation]);
 
-  const handleTranscriptReady = useCallback(async (conversationId: string) => {
+  const handleTranscriptReady = useCallback(async ({
+    conversationId,
+    transcript,
+  }: TranscriptReadyPayload) => {
     console.log('ChatScreen - Transcript ready for conversation:', conversationId);
     try {
       setFetchingTranscript(true);
 
-      // Wait 3 seconds for server processing (matching desktop retry logic)
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      let resolvedTranscript = transcript;
 
-      // Fetch transcript from ElevenLabs
-      const transcript = await fetchConversationTranscript(conversationId);
+      if (!resolvedTranscript) {
+        // Wait 3 seconds for server processing (matching desktop retry logic)
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        // Fetch transcript from ElevenLabs
+        resolvedTranscript = await fetchConversationTranscript(conversationId);
+      }
 
       // Add transcript messages to chat history
-      transcript.forEach((msg) => {
+      resolvedTranscript.forEach((msg) => {
         const tempMessage = {
           id: `transcript-${Date.now()}-${Math.random()}`,
           chatId,
@@ -299,10 +316,11 @@ export default function ChatScreen({ route, navigation }: any) {
       {showGreeting ? (
         <View style={styles.greetingContainer}>
           {/* Logo above greeting */}
-          <Image
-            source={require('../../assets/logo.png')}
+          <Logo
+            width={120}
+            height={30}
+            fill="#FFD700"
             style={styles.greetingLogo}
-            resizeMode="contain"
           />
 
           {/* Elegant personalized greeting */}
@@ -355,8 +373,9 @@ export default function ChatScreen({ route, navigation }: any) {
       )}
       <MessageInput
         onSend={handleSend}
-        disabled={loading || creatingChat || fetchingTranscript}
+        disabled={loading || creatingChat || fetchingTranscript || (chatId === 'new' && !selectedAssistantId)}
         chatId={chatId}
+        placeholder={chatId === 'new' && !selectedAssistantId ? 'Loading assistant...' : 'Type a message...'}
       />
     </KeyboardAvoidingView>
   );
@@ -396,8 +415,6 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE_1,
   },
   greetingLogo: {
-    width: 40,
-    height: 40,
     marginBottom: 24,
   },
   centerContainer: {

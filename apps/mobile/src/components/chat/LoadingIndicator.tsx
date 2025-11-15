@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Animated, Image, Text, Easing } from 'react-native';
 import { COLORS } from '@bgos/shared-logic';
+import Logo from '../../assets/logo.svg';
 
 const THINKING_MESSAGES = [
   'Thinking...',
@@ -98,10 +99,10 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = ({ visible }) =
           <Animated.View style={{ transform: [{ scale: pulseValue }] }}>
             {/* Inner View handles rotation */}
             <Animated.View style={{ transform: [{ rotate: rotate }] }}>
-              <Image
-                source={require('../../assets/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
+              <Logo
+                width={24}
+                height={6}
+                fill="#FFD700"
               />
             </Animated.View>
           </Animated.View>

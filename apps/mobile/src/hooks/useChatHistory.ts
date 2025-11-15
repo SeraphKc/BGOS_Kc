@@ -43,7 +43,12 @@ export const useChatHistory = (
    */
   const createNewChat = useCallback(async (firstMessage: string): Promise<Chat | null> => {
     if (!userId || !selectedAssistantId) {
-      console.error('Cannot create chat: missing userId or selectedAssistantId');
+      console.error('Cannot create chat: missing userId or selectedAssistantId', {
+        userId,
+        selectedAssistantId,
+        hasUserId: !!userId,
+        hasAssistantId: !!selectedAssistantId,
+      });
       return null;
     }
 
@@ -69,11 +74,15 @@ export const useChatHistory = (
       console.error('Error creating chat:', err);
 
       // Show error message in chat
+      const errorText = !userId ? 'User not logged in' :
+                       !selectedAssistantId ? 'No assistant selected. Please select an assistant from the dropdown above.' :
+                       `Error creating chat: ${errorMessage}`;
+
       dispatch(ChatHistoryActions.addMessage({
         id: `error-${Date.now()}`,
         chatId: 'new',
         sender: 'assistant' as const,
-        text: `Error creating chat: ${errorMessage}`,
+        text: errorText,
         sentDate: new Date().toISOString(),
         hasAttachment: false,
         isAudio: false,
@@ -137,6 +146,7 @@ export const useChatHistory = (
         tempMessage.audioData = voiceData.audioData;
         tempMessage.audioFileName = voiceData.audioFileName;
         tempMessage.audioMimeType = voiceData.audioMimeType;
+        tempMessage.audioFilePath = voiceData.audioFilePath; // Preserve file path
         tempMessage.duration = voiceData.duration;
       }
 
@@ -166,6 +176,7 @@ export const useChatHistory = (
         audioData: voiceData?.audioData,
         audioFileName: voiceData?.audioFileName,
         audioMimeType: voiceData?.audioMimeType,
+        audioFilePath: voiceData?.audioFilePath, // Include file path for binary upload
         duration: voiceData?.duration,
       });
 

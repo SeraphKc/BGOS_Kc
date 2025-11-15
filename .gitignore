@@ -93,8 +93,18 @@ out/
 
 # React Native
 apps/mobile/android/app/build/
+apps/mobile/android/app/.cxx/
+apps/mobile/android/build/
 apps/mobile/android/.gradle/
+apps/mobile/android/gradle/
+apps/mobile/android/gradlew
+apps/mobile/android/gradlew.bat
 apps/mobile/android/local.properties
+apps/mobile/android/link-assets-manifest.json
+apps/mobile/android/app/proguard-rules.pro
+apps/mobile/android/app/debug.keystore
+apps/mobile/android/app/src/main/res/drawable/
+apps/mobile/android/app/src/main/res/mipmap-anydpi-v26/
 apps/mobile/ios/Pods/
 apps/mobile/ios/build/
 apps/mobile/.expo/
@@ -102,6 +112,7 @@ apps/mobile/.expo-shared/
 apps/mobile/ios/Podfile.lock
 *.xcworkspace
 *.xcuserdata
+*.backup
 
 # Metro
 apps/mobile/.metro-health-check*
@@ -113,3 +124,11 @@ apps/mobile/.metro-health-check*
 *.p12
 *.key
 *.mobileprovision
+logcat_live.txt
+nul
+
+# TypeScript declarations and custom types
+apps/mobile/src/custom.d.ts
+
+# Build artifacts
+packages/shared-state/dist/

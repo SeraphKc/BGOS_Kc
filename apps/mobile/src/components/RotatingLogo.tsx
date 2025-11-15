@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Image, Animated, StyleSheet } from 'react-native';
+import Logo from '../assets/logo.svg';
 
 interface RotatingLogoProps {
   size?: number;
@@ -27,17 +28,17 @@ const RotatingLogo: React.FC<RotatingLogoProps> = ({ size = 80 }) => {
 
   return (
     <View style={styles.container}>
-      <Animated.Image
-        source={require('../assets/logo.png')}
-        style={[
-          styles.logo,
-          {
-            width: size,
-            height: size,
-            transform: [{ rotate: spin }],
-          },
-        ]}
-      />
+      <Animated.View
+        style={{
+          transform: [{ rotate: spin }],
+        }}
+      >
+        <Logo
+          width={size}
+          height={size * 0.25}
+          fill="#FFD700"
+        />
+      </Animated.View>
     </View>
   );
 };

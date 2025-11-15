@@ -7,6 +7,7 @@ export interface VoiceRecordingData {
   audioData: string;
   audioFileName: string;
   audioMimeType: string;
+  audioFilePath: string; // File path for binary upload
   duration: number;
 }
 
@@ -30,6 +31,17 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
   const requestMicrophonePermission = async (): Promise<boolean> => {
     if (Platform.OS === 'android') {
       try {
+        // First check if permission is already granted to avoid Activity lifecycle issues
+        const checkResult = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+        );
+
+        if (checkResult) {
+          console.log('Microphone permission already granted');
+          return true;
+        }
+
+        // Request permission only if not already granted
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
           {
@@ -43,6 +55,18 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
         return granted === PermissionsAndroid.RESULTS.GRANTED;
       } catch (err) {
         console.error('Error requesting microphone permission:', err);
+        // Check one more time if permission is granted despite the error
+        try {
+          const checkResult = await PermissionsAndroid.check(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+          );
+          if (checkResult) {
+            console.log('Microphone permission already granted (fallback check)');
+            return true;
+          }
+        } catch (checkErr) {
+          console.error('Error checking microphone permission:', checkErr);
+        }
         return false;
       }
     }
@@ -124,6 +148,7 @@ export const useVoiceRecording = (): UseVoiceRecordingReturn => {
         audioData: base64Audio,
         audioFileName: fileName,
         audioMimeType: 'audio/m4a',
+        audioFilePath: audioPathRef.current, // Include file path for binary upload
         duration,
       };
 

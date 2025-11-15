@@ -4,9 +4,13 @@
     "baseUrl": ".",
     "paths": {
       "@bgos/shared-types": ["../../packages/shared-types/src"],
+      "@bgos/shared-types/*": ["../../packages/shared-types/src/*"],
       "@bgos/shared-logic": ["../../packages/shared-logic/src"],
+      "@bgos/shared-logic/*": ["../../packages/shared-logic/src/*"],
       "@bgos/shared-services": ["../../packages/shared-services/src"],
-      "@bgos/shared-state": ["../../packages/shared-state/src"]
+      "@bgos/shared-services/*": ["../../packages/shared-services/src/*"],
+      "@bgos/shared-state": ["../../packages/shared-state/src"],
+      "@bgos/shared-state/*": ["../../packages/shared-state/src/*"]
     },
     "strict": true,
     "esModuleInterop": true,

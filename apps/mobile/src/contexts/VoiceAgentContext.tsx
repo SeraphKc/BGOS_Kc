@@ -1,23 +1,31 @@
 import React, { createContext, useContext, ReactNode, useCallback, useRef } from 'react';
+import type { TranscriptMessage } from '../services/elevenLabsService';
+
+export interface TranscriptReadyPayload {
+  conversationId: string;
+  transcript?: TranscriptMessage[];
+}
 
 interface VoiceAgentContextType {
-  onTranscriptReady?: (conversationId: string) => void;
-  setTranscriptReadyHandler: (handler: (conversationId: string) => void) => void;
+  onTranscriptReady?: (payload: TranscriptReadyPayload) => void;
+  setTranscriptReadyHandler: (handler: (payload: TranscriptReadyPayload) => void) => void;
 }
 
 const VoiceAgentContext = createContext<VoiceAgentContextType | undefined>(undefined);
 
 export const VoiceAgentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const transcriptReadyHandlerRef = useRef<((conversationId: string) => void) | undefined>(undefined);
+  const transcriptReadyHandlerRef = useRef<((payload: TranscriptReadyPayload) => void) | undefined>(
+    undefined
+  );
 
-  const setTranscriptReadyHandler = useCallback((handler: (conversationId: string) => void) => {
+  const setTranscriptReadyHandler = useCallback((handler: (payload: TranscriptReadyPayload) => void) => {
     console.log('VoiceAgentContext - Setting transcript handler');
     transcriptReadyHandlerRef.current = handler;
   }, []);
 
-  const onTranscriptReady = useCallback((conversationId: string) => {
+  const onTranscriptReady = useCallback((payload: TranscriptReadyPayload) => {
     if (transcriptReadyHandlerRef.current) {
-      transcriptReadyHandlerRef.current(conversationId);
+      transcriptReadyHandlerRef.current(payload);
     }
   }, []);
 

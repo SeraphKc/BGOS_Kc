@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Text, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '@bgos/shared-logic';
@@ -34,6 +34,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const inputRef = useRef<TextInput>(null);
 
+  // Refs for synchronous state tracking (prevents double-send bug)
+  const isSendingRef = useRef(false);
+  const textRef = useRef('');
+
+  // Keep textRef in sync with state
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+
   // Voice recording hook
   const {
     isRecording,
@@ -44,20 +53,53 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     cancelRecording,
   } = useVoiceRecording();
 
-  const handleSend = () => {
-    const messageText = text.trim();
+  const handleTextChange = useCallback((newText: string) => {
+    // Detect if a newline was added at the end (Enter key pressed)
+    if (newText.endsWith('\n') && newText.length > textRef.current.length) {
+      // User pressed Enter - only process if not disabled
+      if (!disabled) {
+        const messageText = textRef.current.trim();
+        if (messageText || attachedFiles.length > 0) {
+          handleSend();
+        }
+      }
+      return;
+    }
+
+    // Normal text change - update both state and ref
+    setText(newText);
+    textRef.current = newText;
+  }, [attachedFiles, disabled, handleSend]);
+
+  const handleSend = useCallback(() => {
+    // Double-send protection: Early return if already sending
+    if (isSendingRef.current) {
+      console.log('⚠️ MessageInput - Prevented duplicate send');
+      return;
+    }
+
+    const messageText = textRef.current.trim();
     const hasContent = messageText || attachedFiles.length > 0;
 
     console.log('🔵 MessageInput.handleSend - START', {
-      originalText: text,
+      originalText: textRef.current,
       trimmedText: messageText,
       textLength: messageText.length,
       hasAttachments: attachedFiles.length > 0,
       hasContent,
       disabled,
+      isSending: isSendingRef.current,
     });
 
-    if (hasContent && !disabled) {
+    if (!hasContent || disabled) {
+      console.log('🔴 MessageInput.handleSend - Not sending (no content or disabled)');
+      return;
+    }
+
+    // Set flag immediately (synchronous!)
+    isSendingRef.current = true;
+
+    try {
       const textToSend = messageText || '[File(s) attached]';
       console.log('🟢 MessageInput.handleSend - Calling onSend with:', {
         text: textToSend,
@@ -67,13 +109,17 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       onSend(textToSend, attachedFiles);
       setText('');
+      textRef.current = '';
       setAttachedFiles([]);
 
       console.log('✅ MessageInput.handleSend - Complete, input cleared');
-    } else {
-      console.log('🔴 MessageInput.handleSend - Not sending (no content or disabled)');
+    } finally {
+      // Reset flag after delay to prevent rapid double-taps
+      setTimeout(() => {
+        isSendingRef.current = false;
+      }, 300);
     }
-  };
+  }, [onSend, attachedFiles, disabled]);
 
   const handleAttach = async () => {
     try {
@@ -235,7 +281,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           <TextInput
             ref={inputRef}
             value={text}
-            onChangeText={setText}
+            onChangeText={handleTextChange}
             placeholder={placeholder}
             placeholderTextColor="rgba(255, 255, 255, 0.5)"
             style={[styles.input, { height: computedInputHeight }]}
@@ -245,12 +291,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             maxLength={2000}
             editable={!disabled}
             blurOnSubmit={false}
-            onSubmitEditing={() => {
-              // Handle Enter key press - send message
-              if (text.trim() || attachedFiles.length > 0) {
-                handleSend();
-              }
-            }}
+            returnKeyType="send"
           />
           {/* Send button only shows when there's text or attachments */}
           {(hasText || hasAttachments) && (

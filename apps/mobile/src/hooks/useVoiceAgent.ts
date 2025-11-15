@@ -1,6 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import { useConversation } from '@elevenlabs/react-native';
+import { useDispatch } from 'react-redux';
+import { VoiceActions } from '@bgos/shared-state';
+import { fetchConversationToken } from '../services/elevenLabsService';
 
 export interface VoiceAgentStatus {
   status: 'idle' | 'connecting' | 'connected' | 'thinking' | 'error';
@@ -24,32 +27,44 @@ export const useVoiceAgent = (): UseVoiceAgentReturn => {
   const [error, setError] = useState<string | undefined>();
   const [isPaused, setIsPaused] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const dispatch = useDispatch();
+  const manualStopRef = useRef(false);
 
-  // Use the official ElevenLabs React Native SDK
   const conversation = useConversation({
     onConnect: ({ conversationId: convId }) => {
-      console.log('✅ Voice conversation CONNECTED:', convId);
-      console.trace('✅ Stack trace for connection');
+      console.log('Voice conversation connected:', convId);
       setConversationId(convId);
       setError(undefined);
+      dispatch(VoiceActions.setConversationMetadata({ conversationId: convId }));
+      dispatch(VoiceActions.startRecording());
     },
     onDisconnect: () => {
-      console.log('❌ Voice conversation DISCONNECTED');
-      console.trace('❌ Stack trace for disconnection');
+      console.log('Voice conversation disconnected');
       setConversationId(null);
       setIsPaused(false);
+      dispatch(VoiceActions.setAgentSpeaking(false));
+
+      if (manualStopRef.current) {
+        manualStopRef.current = false;
+      } else {
+        dispatch(VoiceActions.stopVoiceSession());
+      }
     },
     onError: (message) => {
-      console.error('⚠️ Voice conversation ERROR:', message);
-      console.trace('⚠️ Stack trace for error');
+      console.error('Voice conversation error:', message);
       setError(message);
+      dispatch(VoiceActions.setVoiceError(message));
+      manualStopRef.current = false;
     },
     onMessage: (message) => {
-      console.log('💬 Voice message received:', message);
+      console.log('Voice message received:', message);
+    },
+    onModeChange: ({ mode }) => {
+      dispatch(VoiceActions.setAgentSpeaking(mode === 'speaking'));
     },
   });
 
-  // Request microphone permission for Android
   const requestMicrophonePermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === 'android') {
       try {
@@ -72,69 +87,82 @@ export const useVoiceAgent = (): UseVoiceAgentReturn => {
     return true;
   }, []);
 
-  const startConversation = useCallback(async (agentId: string) => {
-    try {
-      setError(undefined);
-
-      console.log('🚀 START CONVERSATION - agentId:', agentId, 'current status:', conversation.status);
-
-      // Check if already connected to avoid multiple sessions
-      if (conversation.status === 'connected') {
-        console.log('🚀 Already connected, skipping new session');
+  const startConversation = useCallback(
+    async (agentId: string) => {
+      if (!agentId) {
+        const message = 'Assistant configuration missing';
+        setError(message);
+        dispatch(VoiceActions.setVoiceError(message));
         return;
       }
 
-      console.log('🚀 Calling conversation.startSession...');
-      // Start session with the official SDK (permission will be requested automatically by SDK)
-      await conversation.startSession({
-        agentId,
-      });
-      console.log('🚀 conversation.startSession completed');
+      if (conversation.status === 'connecting' || conversation.status === 'connected') {
+        console.log('Conversation already running, skipping start');
+        return;
+      }
 
-    } catch (err: any) {
-      console.error('🚀 FAILED to start conversation:', err);
-      console.trace('🚀 Stack trace for start failure');
-      setError(err.message || 'Failed to start conversation');
-    }
-  }, [conversation.status, conversation.startSession]);
+      try {
+        setError(undefined);
+        setIsBootstrapping(true);
+        dispatch(VoiceActions.clearVoiceError());
+        dispatch(VoiceActions.startVoiceSession({ conversationId: null }));
+
+        const conversationToken = await fetchConversationToken(agentId);
+        await conversation.startSession({ conversationToken });
+      } catch (err: any) {
+        console.error('Failed to start conversation:', err);
+        const message = err?.message || 'Failed to start conversation';
+        setError(message);
+        dispatch(VoiceActions.setVoiceError(message));
+        dispatch(VoiceActions.stopVoiceSession());
+        throw err;
+      } finally {
+        setIsBootstrapping(false);
+      }
+    },
+    [conversation, dispatch]
+  );
 
   const stopConversation = useCallback(async () => {
     try {
-      console.log('🛑 STOP CONVERSATION - current status:', conversation.status);
-      console.trace('🛑 Stack trace for stop call');
+      console.log('Stopping voice conversation, current status:', conversation.status);
 
-      // Only stop if actually connected or connecting
       if (conversation.status === 'connected' || conversation.status === 'connecting') {
-        console.log('🛑 Calling conversation.endSession...');
+        manualStopRef.current = true;
         await conversation.endSession();
-        console.log('🛑 Voice conversation ended successfully');
       } else {
-        console.log('🛑 No active conversation to stop (status:', conversation.status, ')');
+        manualStopRef.current = false;
       }
 
       setIsPaused(false);
     } catch (err: any) {
-      console.error('🛑 FAILED to stop conversation:', err);
-      console.trace('🛑 Stack trace for stop failure');
-      setError(err.message || 'Failed to stop conversation');
+      console.error('Failed to stop conversation:', err);
+      const message = err?.message || 'Failed to stop conversation';
+      setError(message);
+      dispatch(VoiceActions.setVoiceError(message));
+      manualStopRef.current = false;
+      throw err;
     }
-  }, [conversation.status, conversation.endSession]);
+  }, [conversation, dispatch]);
 
   const pauseConversation = useCallback(() => {
-    console.log('Pausing conversation - muting microphone');
+    console.log('Muting microphone');
     setIsPaused(true);
     conversation.setMicMuted(true);
-  }, [conversation.setMicMuted]);
+    dispatch(VoiceActions.pauseRecording());
+  }, [conversation, dispatch]);
 
   const resumeConversation = useCallback(() => {
-    console.log('Resuming conversation - unmuting microphone');
+    console.log('Unmuting microphone');
     setIsPaused(false);
     conversation.setMicMuted(false);
-  }, [conversation.setMicMuted]);
+    dispatch(VoiceActions.resumeRecording());
+  }, [conversation, dispatch]);
 
-  // Map SDK status to our status type
   const getStatus = (): VoiceAgentStatus['status'] => {
     if (error) return 'error';
+    if (isBootstrapping) return 'connecting';
+
     switch (conversation.status) {
       case 'connecting':
         return 'connecting';

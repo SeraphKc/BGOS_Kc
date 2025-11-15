@@ -20,6 +20,7 @@ import { RenameDialog } from '../dialogs/RenameDialog';
 import { DeleteChatDialog } from '../dialogs/DeleteChatDialog';
 import { DeleteAssistantDialog } from '../dialogs/DeleteAssistantDialog';
 import { EditAssistantModal } from '../modals/EditAssistantModal';
+import Logo from '../../assets/logo.svg';
 
 interface SidebarProps extends DrawerContentComponentProps {}
 
@@ -182,10 +183,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ navigation }) => {
       {/* Fixed Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Image
-            source={require('../../assets/logo.png')}
+          <Logo
+            width={80}
+            height={20}
+            fill="#FFD700"
             style={styles.logo}
-            resizeMode="contain"
           />
           <Text style={styles.headerTitle}>BGOS</Text>
         </View>

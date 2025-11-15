@@ -1,4 +1,5 @@
 import { ChatHistory, FileInfo } from '@bgos/shared-types';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 
 export interface SendMessageParams {
   userId: string;
@@ -9,6 +10,7 @@ export interface SendMessageParams {
   audioData?: string;
   audioFileName?: string;
   audioMimeType?: string;
+  audioFilePath?: string; // NEW: File path for binary upload
   duration?: number;
 }
 
@@ -104,30 +106,13 @@ export async function sendMessageToWebhook(params: SendMessageParams): Promise<C
     // Audio fields (if voice message)
     if (isAudio && audioData && audioFileName && audioMimeType) {
       formData.append('audioFileName', audioFileName);
-      formData.append('audioData', audioData); // Base64 string
+      formData.append('audioData', audioData); // Base64 string (for database storage)
       formData.append('audioMimeType', audioMimeType);
+      formData.append('duration', String(duration || 0)); // Always send duration (matching desktop)
 
-      if (duration) {
-        formData.append('duration', String(duration));
-      }
-
-      // Convert base64 to Blob for N8n transcription
-      try {
-        // Remove data URL prefix if present
-        const base64Data = audioData.includes(',') ? audioData.split(',')[1] : audioData;
-
-        // Convert base64 to binary
-        const binaryString = atob(base64Data);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const audioBlob = new Blob([bytes], { type: audioMimeType });
-        formData.append('audioFile', audioBlob, audioFileName);
-      } catch (error) {
-        console.error('Error converting audio to blob:', error);
-      }
+      // Upload audio file as binary (matching desktop implementation)
+      // IMPORTANT: Store file info for later processing, don't add to FormData yet
+      // We'll handle this specially in the multipart array building step
     }
 
     // File attachment fields
@@ -149,44 +134,93 @@ export async function sendMessageToWebhook(params: SendMessageParams): Promise<C
       formData.append('isDocument', String(hasDocuments && !isMixedAttachments));
     }
 
-    // Send request to webhook
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      body: formData,
-      // Don't set Content-Type header - let the browser set it with boundary for FormData
-    });
+    // CONDITIONAL UPLOAD: Use ReactNativeBlobUtil ONLY for voice messages with audio files
+    // Otherwise use standard fetch for text messages
+    let responseText: string;
+    let contentType: string;
 
-    if (!response.ok) {
-      throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
-    }
+    if (isAudio && params.audioFilePath && audioFileName && audioMimeType) {
+      // VOICE MESSAGE PATH: Use ReactNativeBlobUtil for binary audio file upload
+      console.log('Voice message detected - using ReactNativeBlobUtil for binary upload');
 
-    // Parse response
-    const contentType = response.headers.get('content-type') || '';
+      const multipartData: any[] = [];
 
-    // Handle audio response
-    if (contentType.includes('audio/') || contentType.includes('application/octet-stream')) {
-      const arrayBuffer = await response.arrayBuffer();
-      const base64Audio = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      // Add all form fields from FormData
+      for (const [key, value] of (formData as any)._parts) {
+        multipartData.push({
+          name: key,
+          data: String(value),
+        });
+      }
+
+      // Add audio file as binary
+      multipartData.push({
+        name: 'audioFile',
+        filename: audioFileName,
+        type: audioMimeType,
+        data: ReactNativeBlobUtil.wrap(params.audioFilePath),
+      });
+
+      console.log(`Uploading ${multipartData.length} fields including binary audioFile`);
+
+      const uploadResponse = await ReactNativeBlobUtil.fetch(
+        'POST',
+        webhookUrl,
+        { 'Content-Type': 'multipart/form-data' },
+        multipartData
       );
 
-      return {
-        id: `audio-response-${Date.now()}`,
-        chatId,
-        sender: 'assistant',
-        sentDate: new Date().toISOString(),
-        text: '',
-        isAudio: true,
-        audioData: base64Audio,
-        audioFileName: `audio_response_${Date.now()}.mp3`,
-        audioMimeType: contentType.includes('audio/') ? contentType : 'audio/mpeg',
-        hasAttachment: false,
-      };
+      const responseInfo = uploadResponse.info();
+      console.log('Upload response status:', responseInfo.status);
+
+      if (responseInfo.status !== 200) {
+        throw new Error(`Webhook request failed: ${responseInfo.status}`);
+      }
+
+      contentType = responseInfo.headers['content-type'] || responseInfo.headers['Content-Type'] || '';
+
+      // Handle audio response (audio/mpeg from N8n)
+      if (contentType.includes('audio/') || contentType.includes('application/octet-stream')) {
+        console.log('Received audio response');
+        const base64Audio = uploadResponse.base64();
+
+        return {
+          id: `audio-response-${Date.now()}`,
+          chatId,
+          sender: 'assistant',
+          sentDate: new Date().toISOString(),
+          text: '',
+          isAudio: true,
+          audioData: base64Audio,
+          audioFileName: `audio_response_${Date.now()}.mp3`,
+          audioMimeType: contentType.includes('audio/') ? contentType : 'audio/mpeg',
+          hasAttachment: false,
+        };
+      }
+
+      responseText = uploadResponse.text();
+    } else {
+      // TEXT MESSAGE PATH: Use standard fetch (original working code)
+      console.log('Text message - using standard fetch');
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type - let React Native set it with boundary
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
+      }
+
+      contentType = response.headers.get('content-type') || '';
+      responseText = await response.text();
     }
 
-    // Handle text/JSON response
-    const responseText = await response.text();
-    console.log('Webhook response text:', responseText);
+    console.log('Webhook response received, content-type:', contentType);
+    console.log('Response text length:', responseText.length);
 
     try {
       const jsonData = JSON.parse(responseText);

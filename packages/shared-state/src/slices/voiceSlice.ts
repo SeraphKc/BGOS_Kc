@@ -7,12 +7,20 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export type VoiceStatus = 'idle' | 'connecting' | 'recording' | 'processing' | 'playing';
+export type VoiceStatus =
+  | 'idle'
+  | 'connecting'
+  | 'recording'
+  | 'processing'
+  | 'playing'
+  | 'error';
 
 export interface VoiceState {
   status: VoiceStatus;
   isPaused: boolean;
   conversationId: string | null;
+  isAgentSpeaking: boolean;
+  isTranscriptLoading: boolean;
   audioLevel: number; // 0-1 normalized audio level for visualization
   playbackProgress: number; // 0-1 playback progress
   error: string | null;
@@ -28,6 +36,8 @@ const initialState: VoiceState = {
   status: 'idle',
   isPaused: false,
   conversationId: null,
+  isAgentSpeaking: false,
+  isTranscriptLoading: false,
   audioLevel: 0,
   playbackProgress: 0,
   error: null,
@@ -43,6 +53,9 @@ const voiceSlice = createSlice({
       state.status = 'connecting';
       state.conversationId = action.payload.conversationId || null;
       state.error = null;
+      state.isPaused = false;
+      state.isAgentSpeaking = false;
+      state.isTranscriptLoading = false;
       state.audioLevel = 0;
       state.playbackProgress = 0;
       state.recordingStartTime = null;
@@ -53,6 +66,7 @@ const voiceSlice = createSlice({
       state.status = 'recording';
       state.isPaused = false;
       state.recordingStartTime = Date.now();
+      state.isTranscriptLoading = false;
     },
 
     pauseRecording: (state) => {
@@ -66,6 +80,7 @@ const voiceSlice = createSlice({
     setRecordingProcessing: (state) => {
       state.status = 'processing';
       state.audioLevel = 0;
+      state.isTranscriptLoading = true;
     },
 
     startPlayback: (state) => {
@@ -107,6 +122,8 @@ const voiceSlice = createSlice({
       state.status = 'idle';
       state.isPaused = false;
       state.conversationId = null;
+      state.isAgentSpeaking = false;
+      state.isTranscriptLoading = false;
       state.audioLevel = 0;
       state.playbackProgress = 0;
       state.recordingStartTime = null;
@@ -115,14 +132,31 @@ const voiceSlice = createSlice({
 
     setVoiceError: (state, action: PayloadAction<string>) => {
       state.error = action.payload;
-      state.status = 'idle';
+      state.status = 'error';
       state.isPaused = false;
       state.audioLevel = 0;
       state.playbackProgress = 0;
+      state.isAgentSpeaking = false;
+      state.isTranscriptLoading = false;
     },
 
     clearVoiceError: (state) => {
       state.error = null;
+    },
+
+    setAgentSpeaking: (state, action: PayloadAction<boolean>) => {
+      state.isAgentSpeaking = action.payload;
+    },
+
+    setTranscriptLoading: (state, action: PayloadAction<boolean>) => {
+      state.isTranscriptLoading = action.payload;
+    },
+
+    setConversationMetadata: (
+      state,
+      action: PayloadAction<{ conversationId: string | null }>
+    ) => {
+      state.conversationId = action.payload.conversationId;
     },
   },
 });
@@ -143,6 +177,9 @@ export const {
   stopVoiceSession,
   setVoiceError,
   clearVoiceError,
+  setAgentSpeaking,
+  setTranscriptLoading,
+  setConversationMetadata,
 } = voiceSlice.actions;
 
 export default voiceSlice.reducer;
