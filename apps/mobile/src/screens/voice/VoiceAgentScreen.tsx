@@ -91,7 +91,7 @@ export const VoiceAgentScreen: React.FC = () => {
         const name = assistantNameRef.current;
 
         if (!token) {
-          console.error('dY"' No s2sToken found for assistant');
+          console.error('❌ No s2sToken found for assistant');
           setPermissionError('Assistant configuration missing');
           return;
         }
@@ -106,7 +106,7 @@ export const VoiceAgentScreen: React.FC = () => {
           console.log('dYY? Microphone permission result:', hasPermission);
 
           if (!hasPermission) {
-            console.error('dY"' Microphone permission denied');
+            console.error('❌ Microphone permission denied');
             setPermissionError('Microphone permission is required for voice conversations');
             return;
           }
@@ -125,7 +125,7 @@ export const VoiceAgentScreen: React.FC = () => {
           console.log('?o. Voice conversation started successfully');
           setPermissionError(undefined);
         } catch (err) {
-          console.error('dY"' Failed to start conversation:', err');
+          console.error('❌ Failed to start conversation:', err);
           setPermissionError('Failed to start voice conversation');
         }
       };
@@ -143,7 +143,7 @@ export const VoiceAgentScreen: React.FC = () => {
 
         stopConversationRef.current()
           .catch((err) => {
-            console.error('dY"' Error stopping conversation:', err');
+            console.error('❌ Error stopping conversation:', err);
           })
           .finally(() => {
             hasStartedRef.current = false;
