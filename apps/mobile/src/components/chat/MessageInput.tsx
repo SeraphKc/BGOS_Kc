@@ -1,16 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Text, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Text, Alert, Platform } from 'react-native';
+import { useSelector } from 'react-redux';
 import { COLORS } from '@bgos/shared-logic';
 import { FileInfo } from '@bgos/shared-types';
 import { launchImageLibrary } from 'react-native-image-picker';
 import ReactNativeBlobUtil from 'react-native-blob-util';
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { AddIcon } from '../icons/AddIcon';
 import { MicrophoneIcon } from '../icons/MicrophoneIcon';
 import { VoiceSquareIcon } from '../icons/VoiceSquareIcon';
 import { SendIcon } from '../icons/SendIcon';
 import { useVoiceRecording, VoiceRecordingData } from '../../hooks/useVoiceRecording';
 import { VoiceRecordingInterface } from './VoiceRecordingInterface';
+import { VoiceAgentModal } from '../voice/VoiceAgentModal';
+import type { RootState } from '@bgos/shared-state';
 
 interface MessageInputProps {
   onSend: (text: string, files?: FileInfo[], voiceData?: VoiceRecordingData) => void;
@@ -28,11 +31,16 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   placeholder = 'Type a message...',
   chatId,
 }) => {
-  const navigation = useNavigation();
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<FileInfo[]>([]);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
+  const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  // Get selected assistant from Redux
+  const selectedAssistant = useSelector((state: RootState) =>
+    state.assistants.list.find((a) => a.id === state.assistants.selectedAssistantId)
+  );
 
   // Refs for synchronous state tracking (prevents double-send bug)
   const isSendingRef = useRef(false);
@@ -219,11 +227,66 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     await cancelRecording();
   };
 
-  const handleVoiceAgent = () => {
+  const handleVoiceAgent = async () => {
     if (disabled) return;
 
-    console.log('MessageInput - Opening voice agent via navigation');
-    navigation.navigate('VoiceAgent' as never);
+    console.log('🎙️ MessageInput - Opening voice agent modal');
+
+    // Request microphone permission before opening modal
+    try {
+      const permission = Platform.select({
+        android: PERMISSIONS.ANDROID.RECORD_AUDIO,
+        ios: PERMISSIONS.IOS.MICROPHONE,
+        default: PERMISSIONS.ANDROID.RECORD_AUDIO,
+      });
+
+      const result = await check(permission);
+      console.log('🔐 Microphone permission status:', result);
+
+      if (result === RESULTS.DENIED) {
+        // Permission has not been requested yet, request it
+        const requestResult = await request(permission);
+        console.log('🔐 Permission request result:', requestResult);
+
+        if (requestResult !== RESULTS.GRANTED) {
+          Alert.alert(
+            'Microphone Permission Required',
+            'Please enable microphone access to use the voice agent.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      } else if (result === RESULTS.BLOCKED) {
+        Alert.alert(
+          'Microphone Permission Blocked',
+          'Please enable microphone access in your device settings to use the voice agent.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Permission granted, check if agent is selected
+      if (!selectedAssistant?.s2sToken) {
+        Alert.alert(
+          'No Agent Selected',
+          'Please select an assistant with voice capabilities.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Open the modal
+      console.log('✅ Opening voice agent modal with agent:', selectedAssistant.name);
+      setIsVoiceModalVisible(true);
+    } catch (error) {
+      console.error('❌ Error requesting microphone permission:', error);
+      Alert.alert('Error', 'Failed to request microphone permission');
+    }
+  };
+
+  const handleCloseVoiceModal = () => {
+    console.log('🚪 Closing voice agent modal');
+    setIsVoiceModalVisible(false);
   };
 
   const computedInputHeight = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight));
@@ -239,6 +302,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <View style={styles.container}>
+      {/* Voice Agent Modal */}
+      <VoiceAgentModal
+        visible={isVoiceModalVisible}
+        onClose={handleCloseVoiceModal}
+        agentId={selectedAssistant?.s2sToken}
+        agentName={selectedAssistant?.name}
+      />
+
       {/* Voice recording interface overlay */}
       {isRecording && (
         <VoiceRecordingInterface
