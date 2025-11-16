@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useConversation } from '@elevenlabs/react-native';
 import { ELEVENLABS_API_KEY } from '@env';
 
@@ -44,7 +44,7 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
           conversationId: convId,
         }));
       }
-    }, [conversation]),
+    }, []),  // Removed 'conversation' dependency to prevent re-creation
 
     onDisconnect: useCallback(() => {
       console.log('🔌 Voice session disconnected');
@@ -170,6 +170,19 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
       return false;
     }
   }, [conversation]);
+
+  // Cleanup effect: End session on unmount
+  useEffect(() => {
+    return () => {
+      // Only cleanup if we have an active session
+      if (sessionState.status === 'connected' || sessionState.status === 'connecting') {
+        console.log('🧹 useVoiceSession unmounting - cleaning up session');
+        conversation.endSession().catch((err) => {
+          console.error('Error cleaning up session on unmount:', err);
+        });
+      }
+    };
+  }, []); // Empty deps - only run on mount/unmount
 
   return {
     sessionState,
