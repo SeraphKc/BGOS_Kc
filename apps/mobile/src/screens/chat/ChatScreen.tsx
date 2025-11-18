@@ -37,6 +37,7 @@ export default function ChatScreen({ route, navigation }: any) {
   const prevChatIdRef = useRef(chatId);
   const dispatch = useDispatch();
   const [fetchingTranscript, setFetchingTranscript] = useState(false);
+  const hasAutoSelectedRef = useRef(false); // Track if we've already auto-selected
 
   // Use voice agent context
   const { setTranscriptReadyHandler } = useVoiceAgentModal();
@@ -52,20 +53,14 @@ export default function ChatScreen({ route, navigation }: any) {
     return chatHistory.filter(message => message.chatId === chatId);
   }, [chatHistory, chatId]);
 
-  // Debug logging for chat history
-  useEffect(() => {
-    console.log('ChatScreen - chatHistory updated:', {
-      totalCount: chatHistory.length,
-      filteredCount: filteredMessages.length,
-      currentChatId: chatId,
-      filteredMessages: filteredMessages.map(m => ({
-        id: m.id,
-        chatId: m.chatId,
-        sender: m.sender,
-        textPreview: m.text?.substring(0, 30) || '[empty]',
-      })),
-    });
-  }, [chatHistory, chatId, filteredMessages]);
+  // Debug logging for chat history - DISABLED to prevent unnecessary re-renders
+  // useEffect(() => {
+  //   console.log('ChatScreen - chatHistory updated:', {
+  //     totalCount: chatHistory.length,
+  //     filteredCount: filteredMessages.length,
+  //     currentChatId: chatId,
+  //   });
+  // }, [chatHistory, chatId, filteredMessages]);
   const selectedAssistant = useSelector((state: RootState) =>
     state.assistants.list.find((a) => a.id === selectedAssistantId)
   );
@@ -82,19 +77,24 @@ export default function ChatScreen({ route, navigation }: any) {
   );
 
   // Default agent selection for new chats
+  // NOTE: Removed 'assistants' from dependencies to prevent re-triggering when assistants array reference changes
+  // This effect should ONLY run when chatId changes or selectedAssistantId changes
+  // Uses hasAutoSelectedRef to prevent re-selection after initial auto-select
   useEffect(() => {
-    console.log('🔵 ChatScreen - Default assistant selection check:', {
-      chatId,
-      selectedAssistantId,
-      assistantsCount: assistants.length,
-      shouldSelect: chatId === 'new' && !selectedAssistantId && assistants.length > 0,
-    });
-
-    if (chatId === 'new' && !selectedAssistantId && assistants.length > 0) {
+    // Only auto-select if we haven't already done so AND no assistant is currently selected
+    // This prevents re-selection when modal opens/closes
+    if (chatId === 'new' && !selectedAssistantId && assistants.length > 0 && !hasAutoSelectedRef.current) {
       console.log('🟢 ChatScreen - Auto-selecting first assistant:', assistants[0].id);
       dispatch(AssistantActions.setSelectedAssistant(assistants[0].id));
+      hasAutoSelectedRef.current = true; // Mark that we've auto-selected
     }
-  }, [chatId, selectedAssistantId, assistants, dispatch]);
+
+    // Reset flag when navigating away from 'new' chat
+    if (chatId !== 'new') {
+      hasAutoSelectedRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, selectedAssistantId, dispatch]);
 
   useEffect(() => {
     const prevChatId = prevChatIdRef.current;

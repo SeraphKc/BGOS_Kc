@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Text, Alert, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '@bgos/shared-logic';
 import { FileInfo } from '@bgos/shared-types';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -12,7 +13,6 @@ import { VoiceSquareIcon } from '../icons/VoiceSquareIcon';
 import { SendIcon } from '../icons/SendIcon';
 import { useVoiceRecording, VoiceRecordingData } from '../../hooks/useVoiceRecording';
 import { VoiceRecordingInterface } from './VoiceRecordingInterface';
-import { VoiceAgentModal } from '../voice/VoiceAgentModal';
 import type { RootState } from '@bgos/shared-state';
 
 interface MessageInputProps {
@@ -34,8 +34,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [text, setText] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<FileInfo[]>([]);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
-  const [isVoiceModalVisible, setIsVoiceModalVisible] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const navigation = useNavigation();
 
   // Get selected assistant from Redux
   const selectedAssistant = useSelector((state: RootState) =>
@@ -77,7 +77,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     // Normal text change - update both state and ref
     setText(newText);
     textRef.current = newText;
-  }, [attachedFiles, disabled, handleSend]);
+  }, [attachedFiles, disabled]);
 
   const handleSend = useCallback(() => {
     // Double-send protection: Early return if already sending
@@ -218,8 +218,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const handleRecordingConfirm = async () => {
     const voiceData = await stopRecording();
     if (voiceData) {
-      // Send voice message with transcription placeholder
-      onSend('[Voice message]', [], voiceData);
+      // Send voice message with empty text (webhook expects empty string for audio messages)
+      onSend('', [], voiceData);
     }
   };
 
@@ -228,44 +228,12 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   const handleVoiceAgent = async () => {
-    if (disabled) return;
-
-    console.log('🎙️ MessageInput - Opening voice agent modal');
-
-    // Request microphone permission before opening modal
     try {
-      const permission = Platform.select({
-        android: PERMISSIONS.ANDROID.RECORD_AUDIO,
-        ios: PERMISSIONS.IOS.MICROPHONE,
-        default: PERMISSIONS.ANDROID.RECORD_AUDIO,
-      });
+      if (disabled) return;
 
-      const result = await check(permission);
-      console.log('🔐 Microphone permission status:', result);
+      console.log('🎙️ MessageInput - Navigating to voice agent screen');
 
-      if (result === RESULTS.DENIED) {
-        // Permission has not been requested yet, request it
-        const requestResult = await request(permission);
-        console.log('🔐 Permission request result:', requestResult);
-
-        if (requestResult !== RESULTS.GRANTED) {
-          Alert.alert(
-            'Microphone Permission Required',
-            'Please enable microphone access to use the voice agent.',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-      } else if (result === RESULTS.BLOCKED) {
-        Alert.alert(
-          'Microphone Permission Blocked',
-          'Please enable microphone access in your device settings to use the voice agent.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-
-      // Permission granted, check if agent is selected
+      // Check if agent is selected
       if (!selectedAssistant?.s2sToken) {
         Alert.alert(
           'No Agent Selected',
@@ -275,18 +243,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Open the modal
-      console.log('✅ Opening voice agent modal with agent:', selectedAssistant.name);
-      setIsVoiceModalVisible(true);
+      // Navigate to VoiceAgentScreen
+      console.log('✅ Navigating to voice agent with agent:', selectedAssistant.name);
+      navigation.navigate('VoiceAgent' as never);
     } catch (error) {
-      console.error('❌ Error requesting microphone permission:', error);
-      Alert.alert('Error', 'Failed to request microphone permission');
+      console.error('❌ Error in handleVoiceAgent:', error);
+      Alert.alert('Error', 'Failed to open voice agent');
     }
-  };
-
-  const handleCloseVoiceModal = () => {
-    console.log('🚪 Closing voice agent modal');
-    setIsVoiceModalVisible(false);
   };
 
   const computedInputHeight = Math.min(MAX_INPUT_HEIGHT, Math.max(MIN_INPUT_HEIGHT, inputHeight));
@@ -302,30 +265,23 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* Voice Agent Modal */}
-      <VoiceAgentModal
-        visible={isVoiceModalVisible}
-        onClose={handleCloseVoiceModal}
-        agentId={selectedAssistant?.s2sToken}
-        agentName={selectedAssistant?.name}
-      />
+      <>
+        {/* Voice recording interface overlay */}
+        {isRecording && (
+          <VoiceRecordingInterface
+            duration={recordingDuration}
+            audioLevel={audioLevel}
+            onCancel={handleRecordingCancel}
+            onConfirm={handleRecordingConfirm}
+          />
+        )}
 
-      {/* Voice recording interface overlay */}
-      {isRecording && (
-        <VoiceRecordingInterface
-          duration={recordingDuration}
-          audioLevel={audioLevel}
-          onCancel={handleRecordingCancel}
-          onConfirm={handleRecordingConfirm}
-        />
-      )}
-
-      {/* Attached files preview */}
-      {hasAttachments && (
-        <View style={styles.attachmentsContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {attachedFiles.map((file, index) => (
-              <View key={index} style={styles.fileBadge}>
+        {/* Attached files preview */}
+        {hasAttachments && (
+          <View style={styles.attachmentsContainer}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {attachedFiles.map((file, index) => (
+                <View key={index} style={styles.fileBadge}>
                 <Text style={styles.fileIcon}>{getFileIcon(file)}</Text>
                 <Text style={styles.fileName} numberOfLines={1}>
                   {file.fileName}
@@ -345,76 +301,80 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         </View>
       )}
 
-      {/* Input wrapper containing all elements - Two-line layout */}
-      <View style={styles.inputWrapper}>
-        {/* Line 1: Text input (full width) */}
-        <View style={styles.inputRow}>
-          <TextInput
-            ref={inputRef}
-            value={text}
-            onChangeText={handleTextChange}
-            placeholder={placeholder}
-            placeholderTextColor="rgba(255, 255, 255, 0.5)"
-            style={[styles.input, { height: computedInputHeight }]}
-            multiline
-            onContentSizeChange={(event) => setInputHeight(event.nativeEvent.contentSize.height)}
-            textAlignVertical="top"
-            maxLength={2000}
-            editable={!disabled}
-            blurOnSubmit={false}
-            returnKeyType="send"
-          />
-          {/* Send button only shows when there's text or attachments */}
-          {(hasText || hasAttachments) && (
+      {/* Input wrapper - hidden when recording voice */}
+      {!isRecording && (
+        <View style={styles.inputWrapper}>
+          {/* Line 1: Text input (full width) */}
+          <View style={styles.inputRow}>
+            <TextInput
+              ref={inputRef}
+              value={text}
+              onChangeText={handleTextChange}
+              placeholder={placeholder}
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              style={[styles.input, { height: computedInputHeight }]}
+              multiline
+              onContentSizeChange={(event) => setInputHeight(event.nativeEvent.contentSize.height)}
+              textAlignVertical="top"
+              maxLength={2000}
+              editable={!disabled}
+              blurOnSubmit={false}
+              returnKeyType="send"
+            />
+            {/* Send button only shows when there's text or attachments */}
+            {(hasText || hasAttachments) && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.sendButton]}
+                onPress={handleSend}
+                disabled={disabled}
+                activeOpacity={0.7}
+              >
+                <SendIcon size={18} color="#262624" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Line 2: Action buttons */}
+          <View style={styles.buttonRow}>
+            {/* Left: Attach button */}
             <TouchableOpacity
-              style={[styles.actionButton, styles.sendButton]}
-              onPress={handleSend}
+              style={[styles.actionButton, attachedFiles.length >= 3 && styles.disabledButton]}
+              onPress={handleAttach}
+              disabled={disabled || attachedFiles.length >= 3}
+              activeOpacity={0.7}
+            >
+              <AddIcon size={18} color={attachedFiles.length >= 3 ? "rgba(255, 255, 255, 0.3)" : "rgba(255, 255, 255, 0.8)"} />
+            </TouchableOpacity>
+
+            {/* Spacer to push right buttons to the right */}
+            <View style={{ flex: 1 }} />
+
+            {/* Right: Microphone and Voice agent buttons */}
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleMicrophone}
               disabled={disabled}
               activeOpacity={0.7}
             >
-              <SendIcon size={18} color="#262624" />
+              <MicrophoneIcon size={18} color="#FFD900" />
             </TouchableOpacity>
-          )}
+
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={handleVoiceAgent}
+              disabled={disabled}
+              activeOpacity={0.7}
+            >
+              <VoiceSquareIcon size={20} color="#FFD900" />
+            </TouchableOpacity>
+          </View>
         </View>
-
-        {/* Line 2: Action buttons */}
-        <View style={styles.buttonRow}>
-          {/* Left: Attach button */}
-          <TouchableOpacity
-            style={[styles.actionButton, attachedFiles.length >= 3 && styles.disabledButton]}
-            onPress={handleAttach}
-            disabled={disabled || attachedFiles.length >= 3}
-            activeOpacity={0.7}
-          >
-            <AddIcon size={18} color={attachedFiles.length >= 3 ? "rgba(255, 255, 255, 0.3)" : "rgba(255, 255, 255, 0.8)"} />
-          </TouchableOpacity>
-
-          {/* Spacer to push right buttons to the right */}
-          <View style={{ flex: 1 }} />
-
-          {/* Right: Microphone and Voice agent buttons */}
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleMicrophone}
-            disabled={disabled}
-            activeOpacity={0.7}
-          >
-            <MicrophoneIcon size={18} color="#FFD900" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleVoiceAgent}
-            disabled={disabled}
-            activeOpacity={0.7}
-          >
-            <VoiceSquareIcon size={20} color="#FFD900" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      )}
+      </>
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

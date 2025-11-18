@@ -109,6 +109,7 @@ export async function sendMessageToWebhook(params: SendMessageParams): Promise<C
       formData.append('audioData', audioData); // Base64 string (for database storage)
       formData.append('audioMimeType', audioMimeType);
       formData.append('duration', String(duration || 0)); // Always send duration (matching desktop)
+      formData.append('isMixedAttachments', 'false'); // Voice-only messages have no mixed attachments
 
       // Upload audio file as binary (matching desktop implementation)
       // IMPORTANT: Store file info for later processing, don't add to FormData yet
@@ -134,90 +135,24 @@ export async function sendMessageToWebhook(params: SendMessageParams): Promise<C
       formData.append('isDocument', String(hasDocuments && !isMixedAttachments));
     }
 
-    // CONDITIONAL UPLOAD: Use ReactNativeBlobUtil ONLY for voice messages with audio files
-    // Otherwise use standard fetch for text messages
-    let responseText: string;
-    let contentType: string;
+    // Use standard fetch for all messages (text and voice)
+    // Voice messages already have base64 audio data in the audioData field
+    console.log(isAudio ? 'Voice message - using standard fetch with base64 audio' : 'Text message - using standard fetch');
 
-    if (isAudio && params.audioFilePath && audioFileName && audioMimeType) {
-      // VOICE MESSAGE PATH: Use ReactNativeBlobUtil for binary audio file upload
-      console.log('Voice message detected - using ReactNativeBlobUtil for binary upload');
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      body: formData,
+      // Don't set Content-Type - let React Native set it with boundary
+    });
 
-      const multipartData: any[] = [];
+    console.log('Response status:', response.status);
 
-      // Add all form fields from FormData
-      for (const [key, value] of (formData as any)._parts) {
-        multipartData.push({
-          name: key,
-          data: String(value),
-        });
-      }
-
-      // Add audio file as binary
-      multipartData.push({
-        name: 'audioFile',
-        filename: audioFileName,
-        type: audioMimeType,
-        data: ReactNativeBlobUtil.wrap(params.audioFilePath),
-      });
-
-      console.log(`Uploading ${multipartData.length} fields including binary audioFile`);
-
-      const uploadResponse = await ReactNativeBlobUtil.fetch(
-        'POST',
-        webhookUrl,
-        { 'Content-Type': 'multipart/form-data' },
-        multipartData
-      );
-
-      const responseInfo = uploadResponse.info();
-      console.log('Upload response status:', responseInfo.status);
-
-      if (responseInfo.status !== 200) {
-        throw new Error(`Webhook request failed: ${responseInfo.status}`);
-      }
-
-      contentType = responseInfo.headers['content-type'] || responseInfo.headers['Content-Type'] || '';
-
-      // Handle audio response (audio/mpeg from N8n)
-      if (contentType.includes('audio/') || contentType.includes('application/octet-stream')) {
-        console.log('Received audio response');
-        const base64Audio = uploadResponse.base64();
-
-        return {
-          id: `audio-response-${Date.now()}`,
-          chatId,
-          sender: 'assistant',
-          sentDate: new Date().toISOString(),
-          text: '',
-          isAudio: true,
-          audioData: base64Audio,
-          audioFileName: `audio_response_${Date.now()}.mp3`,
-          audioMimeType: contentType.includes('audio/') ? contentType : 'audio/mpeg',
-          hasAttachment: false,
-        };
-      }
-
-      responseText = uploadResponse.text();
-    } else {
-      // TEXT MESSAGE PATH: Use standard fetch (original working code)
-      console.log('Text message - using standard fetch');
-
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        body: formData,
-        // Don't set Content-Type - let React Native set it with boundary
-      });
-
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
-      }
-
-      contentType = response.headers.get('content-type') || '';
-      responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(`Webhook request failed: ${response.status} ${response.statusText}`);
     }
+
+    const contentType = response.headers.get('content-type') || '';
+    const responseText = await response.text();
 
     console.log('Webhook response received, content-type:', contentType);
     console.log('Response text length:', responseText.length);

@@ -24,27 +24,31 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
   });
 
   const conversationIdRef = useRef<string | null>(null);
+  const isStartingRef = useRef(false); // Guard against duplicate starts
 
   // Initialize Eleven Labs conversation hook
   const conversation = useConversation({
     onConnect: useCallback(() => {
       console.log('✅ Voice session connected');
+      isStartingRef.current = false; // Reset guard
       setSessionState((prev) => ({
         ...prev,
         status: 'connected',
         error: null,
       }));
 
-      // Get conversation ID
-      const convId = conversation.getId();
-      if (convId) {
-        conversationIdRef.current = convId;
-        setSessionState((prev) => ({
-          ...prev,
-          conversationId: convId,
-        }));
+      // Get conversation ID using function scope
+      if (conversation) {
+        const convId = conversation.getId();
+        if (convId) {
+          conversationIdRef.current = convId;
+          setSessionState((prev) => ({
+            ...prev,
+            conversationId: convId,
+          }));
+        }
       }
-    }, []),  // Removed 'conversation' dependency to prevent re-creation
+    }, [conversation]),
 
     onDisconnect: useCallback(() => {
       console.log('🔌 Voice session disconnected');
@@ -87,6 +91,12 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
 
   // Start voice session
   const startSession = useCallback(async () => {
+    // Guard against duplicate starts
+    if (isStartingRef.current) {
+      console.log('⚠️ Session already starting, ignoring duplicate request');
+      return false;
+    }
+
     if (!agentId) {
       console.error('❌ Cannot start session: No agent ID provided');
       setSessionState((prev) => ({
@@ -98,6 +108,7 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
     }
 
     try {
+      isStartingRef.current = true; // Set guard
       console.log('🚀 Starting voice session with agent:', agentId);
       setSessionState((prev) => ({
         ...prev,
@@ -139,6 +150,7 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
       console.log('✅ Voice session started successfully');
       return true;
     } catch (error) {
+      isStartingRef.current = false; // Reset guard on error
       console.error('❌ Failed to start voice session:', error);
       setSessionState((prev) => ({
         ...prev,
@@ -171,17 +183,30 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
     }
   }, [conversation]);
 
-  // Cleanup effect: End session on unmount
+  // Track session status and conversation in ref for cleanup
+  const sessionStatusRef = useRef(sessionState.status);
+  const conversationRef = useRef(conversation);
+
+  useEffect(() => {
+    sessionStatusRef.current = sessionState.status;
+    conversationRef.current = conversation;
+  }, [sessionState.status, conversation]);
+
+  // Cleanup effect: End session on unmount ONLY
   useEffect(() => {
     return () => {
       // Only cleanup if we have an active session
-      if (sessionState.status === 'connected' || sessionState.status === 'connecting') {
+      const currentStatus = sessionStatusRef.current;
+      const conv = conversationRef.current;
+
+      if ((currentStatus === 'connected' || currentStatus === 'connecting') && conv) {
         console.log('🧹 useVoiceSession unmounting - cleaning up session');
-        conversation.endSession().catch((err) => {
+        conv.endSession().catch((err) => {
           console.error('Error cleaning up session on unmount:', err);
         });
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run on mount/unmount
 
   return {

@@ -14,11 +14,21 @@ module.exports = {
   rebuildConfig: {},
   makers: [
     {
+      name: '@electron-forge/maker-squirrel',
+      config: {
+        name: 'BGOS',
+        authors: 'BGOS Team',
+        description: 'BGOS Desktop Application',
+        setupIcon: path.resolve(__dirname, 'src/assets/icon.ico'),
+        noMsi: true
+      },
+    },
+    {
       name: '@electron-forge/maker-zip',
       platforms: ['win32', 'darwin'],
     },
     {
-        name: '@electron-forge/maker-dmg', 
+        name: '@electron-forge/maker-dmg',
         config: {
           name: 'Ava',
         },

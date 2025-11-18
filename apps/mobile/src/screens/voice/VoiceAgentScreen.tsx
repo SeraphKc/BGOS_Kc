@@ -18,6 +18,7 @@ import { MicrophoneIcon } from '../../components/icons/MicrophoneIcon';
 import { MicrophoneMutedIcon } from '../../components/icons/MicrophoneMutedIcon';
 import { EndCallIcon } from '../../components/icons/EndCallIcon';
 
+// @refresh reset
 export const VoiceAgentScreen: React.FC = () => {
   const navigation = useNavigation();
   const { onTranscriptReady } = useVoiceAgentModal();
@@ -51,6 +52,7 @@ export const VoiceAgentScreen: React.FC = () => {
   // Track conversation ID for transcript
   const conversationIdRef = useRef<string | null>(null);
   const hasStartedRef = useRef(false);
+  const isStartingRef = useRef(false); // Prevent duplicate start attempts
 
   // Store stable references to conversation functions
   const startConversationRef = useRef(startConversation);
@@ -81,52 +83,66 @@ export const VoiceAgentScreen: React.FC = () => {
   // CRITICAL: Use useFocusEffect for navigation-aware lifecycle
   useFocusEffect(
     useCallback(() => {
-      console.log('dYY? VoiceAgentScreen FOCUSED - screen is visible');
+      console.log('👁️ VoiceAgentScreen FOCUSED - screen is visible');
 
       let cancelled = false;
 
       // Function to start conversation with permission check
       const startWithPermission = async () => {
+        // Prevent duplicate start attempts
+        if (isStartingRef.current || hasStartedRef.current) {
+          console.log('⚠️ Already starting or started, skipping');
+          return;
+        }
+
+        isStartingRef.current = true;
+
         const token = assistantTokenRef.current;
         const name = assistantNameRef.current;
 
         if (!token) {
           console.error('❌ No s2sToken found for assistant');
           setPermissionError('Assistant configuration missing');
+          isStartingRef.current = false;
           return;
         }
 
         try {
-          console.log('dYY? Requesting microphone permission...');
+          console.log('🎤 Requesting microphone permission...');
           setIsRequestingPermission(true);
 
           const hasPermission = await requestPermissionRef.current();
 
           setIsRequestingPermission(false);
-          console.log('dYY? Microphone permission result:', hasPermission);
+          console.log('🎤 Microphone permission result:', hasPermission);
 
           if (!hasPermission) {
             console.error('❌ Microphone permission denied');
             setPermissionError('Microphone permission is required for voice conversations');
+            isStartingRef.current = false;
             return;
           }
 
-          console.log('dYY? Starting voice conversation with agent:', name);
-          console.log('dYY? Agent s2sToken:', token.substring(0, 20) + '...');
+          console.log('🚀 Starting voice conversation with agent:', name);
+          console.log('🔑 Agent s2sToken:', token.substring(0, 20) + '...');
 
           if (cancelled) {
-            console.log('dYY? Start request cancelled, skipping startConversation call');
+            console.log('⏸️ Start request cancelled, skipping startConversation call');
+            isStartingRef.current = false;
             return;
           }
 
           await startConversationRef.current(token);
           hasStartedRef.current = true;
 
-          console.log('?o. Voice conversation started successfully');
+          console.log('✅ Voice conversation started successfully');
           setPermissionError(undefined);
         } catch (err) {
           console.error('❌ Failed to start conversation:', err);
           setPermissionError('Failed to start voice conversation');
+          hasStartedRef.current = false;
+        } finally {
+          isStartingRef.current = false;
         }
       };
 
@@ -136,7 +152,7 @@ export const VoiceAgentScreen: React.FC = () => {
       // Cleanup: Stop conversation when screen loses focus (navigating away or unmounting)
       return () => {
         cancelled = true;
-        console.log('dYY? VoiceAgentScreen BLURRED - screen lost focus, stopping conversation');
+        console.log('🔄 VoiceAgentScreen BLURRED - screen lost focus, stopping conversation');
         if (!hasStartedRef.current) {
           return;
         }
