@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { removeChat } from '../slices/ChatSlice';
 import { setSidebarCollapsed } from '../slices/UISlice';
-import { getRelativeTimeFromChatId } from '../utils/dateFormatter';
+import { getRelativeTimeFromChat, compareChatsByDate } from '../utils/dateFormatter';
 import { useNotification } from '../hooks/useNotification';
 import BulkDeleteConfirmDialog from './BulkDeleteConfirmDialog';
 
@@ -28,19 +28,25 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // Filter chats based on search query (title and messages)
+    // Filter and sort chats based on search query (title and messages)
     const filteredChats = useMemo(() => {
-        if (!searchQuery.trim()) return chats;
+        let result = chats;
 
-        const query = searchQuery.toLowerCase();
-        return chats.filter(chat => {
-            // Search in title
-            if (chat.title.toLowerCase().includes(query)) return true;
+        // Filter by search query if provided
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = chats.filter(chat => {
+                // Search in title
+                if (chat.title.toLowerCase().includes(query)) return true;
 
-            // TODO: Search in messages when message data is available
-            // For now, only searching titles
-            return false;
-        });
+                // TODO: Search in messages when message data is available
+                // For now, only searching titles
+                return false;
+            });
+        }
+
+        // Sort by most recent first
+        return result.slice().sort((a, b) => compareChatsByDate(a, b));
     }, [chats, searchQuery]);
 
     const handleSelectAll = () => {
@@ -376,7 +382,7 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
                                                 fontFamily: 'Styrene-B'
                                             }}
                                         >
-                                            Last message {getRelativeTimeFromChatId(chat.id)}
+                                            Last message {getRelativeTimeFromChat(chat)}
                                         </div>
                                     </div>
                                 </div>

@@ -12,6 +12,7 @@ import newChatIcon from '../assets/icons/new-chat.svg';
 import { MessagesSquare, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getInitials, getAvatarColor, avatarColors } from '../utils/avatarUtils';
+import { compareChatsByDate } from '../utils/dateFormatter';
 import {useAppSelector} from '../utils/hooks';
 import {selectSidebarCollapsed} from '../utils/selectors';
 import {setSidebarCollapsed} from '../slices/UISlice';
@@ -588,8 +589,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                             if (a.isStarred && b.isStarred) {
                                                                 return (a.starOrder || 0) - (b.starOrder || 0);
                                                             }
-                                                            // Unstarred chats sorted by ID (most recent first)
-                                                            return b.id.localeCompare(a.id);
+                                                            // Unstarred chats sorted by timestamp (most recent first)
+                                                            return compareChatsByDate(a, b);
                                                         })
                                                         .map(chat => {
                                                             const isChatHovered = hoveredChatId === chat.id;
@@ -678,9 +679,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                             });
                                         });
 
-                                        // Sort by ID (most recent first) and take top 20
+                                        // Sort by timestamp (most recent first) and take top 20
                                         const recentChats = allChats
-                                            .sort((a, b) => b.id.localeCompare(a.id))
+                                            .sort((a, b) => compareChatsByDate(a, b))
                                             .slice(0, 20);
 
                                         if (recentChats.length === 0) {

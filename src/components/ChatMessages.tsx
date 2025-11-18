@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import MessageItem from './MessageItem';
 import {Assistant} from "../types/model/Assistant";
 import {ChatHistory} from "../types/model/ChatHistory";
@@ -6,6 +6,9 @@ import copyIcon from '../assets/icons/copy.svg';
 import RetryAssistantSelector from './RetryAssistantSelector';
 import BDOSIcon from './icons/BDOSIcon';
 import { LoadingIndicator } from './LoadingIndicator';
+import { useAppSelector } from '../utils/hooks';
+import { getInitials, getAvatarColor } from '../utils/avatarUtils';
+import AnimatedCheckmark from './AnimatedCheckmark';
 
 interface ChatMessagesProps {
     messages?: ChatHistory[];
@@ -21,14 +24,28 @@ interface ChatMessagesProps {
 const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assistants = [], isLoading = false, onToggleArtifacts, onOpenRightSidebar, onRetryWithAssistant }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // Get current user for initials
+    const currentUser = useAppSelector((state) => state.user.currentUser);
+
+    // Track which message was copied for showing checkmark animation
+    const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
+
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    const handleCopyMessage = async (text: string) => {
+    const handleCopyMessage = async (text: string, messageIndex: number) => {
         try {
+            // Copy the text in its original format (preserving markdown/HTML)
             await navigator.clipboard.writeText(text);
-            // You could add a notification here if you want to show success feedback
+
+            // Show checkmark animation
+            setCopiedMessageIndex(messageIndex);
+
+            // Reset back to copy icon after 1 second
+            setTimeout(() => {
+                setCopiedMessageIndex(null);
+            }, 1000);
         } catch (err) {
             console.error('Failed to copy text: ', err);
             // Fallback for older browsers
@@ -38,6 +55,12 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
+
+            // Show checkmark animation even with fallback
+            setCopiedMessageIndex(messageIndex);
+            setTimeout(() => {
+                setCopiedMessageIndex(null);
+            }, 1000);
         }
     };
 
@@ -53,9 +76,20 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
         return true; // Render all other messages
     }) : [];
 
+    // Generate user avatar with initials from current user's name
+    const userName = currentUser?.name || '';
+    const userInitials = userName ? getInitials(userName) : 'U';
+    const userColor = userName ? getAvatarColor(userName) : 'rgb(193, 193, 182)';
+
     const userAvatar = (
-        <div className="rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{ backgroundColor: 'rgb(193, 193, 182)', color: 'rgb(15, 16, 13)', width: '28px', height: '28px' }}>
-            U
+        <div className="rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" style={{
+            backgroundColor: userColor,
+            color: '#ffffff',
+            width: '28px',
+            height: '28px',
+            fontFamily: 'Montserrat'
+        }}>
+            {userInitials}
         </div>
     );
 
@@ -75,7 +109,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                     >
                         {message.sender === 'user' ? (
                             // User message with avatar and background
-                            <div className="flex justify-start w-full">
+                            <div className="flex flex-col gap-2 w-full group">
                                 <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: 'rgb(15, 16, 13)', borderRadius: '8px', maxWidth: 'fit-content' }}>
                                     {userAvatar}
                                     <div>
@@ -89,6 +123,24 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                                             onOpenRightSidebar={onOpenRightSidebar}
                                         />
                                     </div>
+                                </div>
+                                {/* Copy button for user messages - only visible on hover, aligned right */}
+                                <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    <button
+                                        onClick={() => handleCopyMessage(message.text, index)}
+                                        className="p-2 hover:bg-gray-700/20 rounded-lg transition-all duration-200 focus:outline-none"
+                                        title={copiedMessageIndex === index ? "Copied!" : "Copy message"}
+                                    >
+                                        {copiedMessageIndex === index ? (
+                                            <AnimatedCheckmark size={16} />
+                                        ) : (
+                                            <img
+                                                src={copyIcon}
+                                                alt="Copy"
+                                                className="w-5 h-5 object-contain"
+                                            />
+                                        )}
+                                    </button>
                                 </div>
                             </div>
                         ) : (
@@ -117,16 +169,20 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                                             
                                             {/* Copy and Retry controls on the right */}
                                             <div className="flex items-center gap-3">
-                                                <button 
-                                                    onClick={() => handleCopyMessage(message.text)}
-                                                    className="p-2 hover:bg-gray-700/20 rounded-lg transition-colors duration-200 focus:outline-none"
-                                                    title="Copy message"
+                                                <button
+                                                    onClick={() => handleCopyMessage(message.text, index)}
+                                                    className="p-2 hover:bg-gray-700/20 rounded-lg transition-all duration-200 focus:outline-none"
+                                                    title={copiedMessageIndex === index ? "Copied!" : "Copy message"}
                                                 >
-                                                    <img 
-                                                        src={copyIcon} 
-                                                        alt="Copy" 
-                                                        className="w-5 h-5 object-contain"
-                                                    />
+                                                    {copiedMessageIndex === index ? (
+                                                        <AnimatedCheckmark size={16} />
+                                                    ) : (
+                                                        <img
+                                                            src={copyIcon}
+                                                            alt="Copy"
+                                                            className="w-5 h-5 object-contain"
+                                                        />
+                                                    )}
                                                 </button>
                                                 {assistants.length > 1 && onRetryWithAssistant && (
                                                     <RetryAssistantSelector

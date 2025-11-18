@@ -20,7 +20,47 @@ const chatSlice = createSlice({
     initialState,
     reducers: {
         setChats(state, action: PayloadAction<Chat[]>) {
-            state.list = action.payload;
+            // Preserve timestamps from existing chats when refreshing data
+            const existingChatsMap = new Map(state.list.map(c => [c.id, c]));
+
+            // Find the maximum ID to estimate relative ages for new chats
+            const allIds = action.payload.map(c => parseInt(c.id, 10)).filter(id => !isNaN(id));
+            const maxId = Math.max(...allIds, 0);
+
+            state.list = action.payload.map(chat => {
+                const existingChat = existingChatsMap.get(chat.id);
+
+                // If we have existing timestamps, use them
+                if (existingChat?.createdAt || existingChat?.lastMessageDate) {
+                    return {
+                        ...chat,
+                        createdAt: chat.createdAt || existingChat.createdAt,
+                        lastMessageDate: chat.lastMessageDate || existingChat.lastMessageDate
+                    };
+                }
+
+                // If backend provides timestamps, use them
+                if (chat.createdAt || chat.lastMessageDate) {
+                    return chat;
+                }
+
+                // Estimate timestamps based on ID (higher ID = more recent)
+                // This is a fallback until backend provides actual timestamps
+                const chatId = parseInt(chat.id, 10);
+                if (!isNaN(chatId) && maxId > 0) {
+                    const idDiff = maxId - chatId;
+                    // Each ID difference = approximately 30 minutes
+                    const estimatedTime = Date.now() - (idDiff * 30 * 60 * 1000);
+                    const estimatedDate = new Date(estimatedTime).toISOString();
+                    return {
+                        ...chat,
+                        createdAt: estimatedDate,
+                        lastMessageDate: estimatedDate
+                    };
+                }
+
+                return chat;
+            });
             state.loading = false;
             state.error = null;
         },
@@ -28,7 +68,13 @@ const chatSlice = createSlice({
             state.selectedChatId = action.payload;
         },
         pushChat(state, action: PayloadAction<Chat>) {
-            state.list.push(action.payload);
+            // Add createdAt timestamp if not already provided
+            const chatWithTimestamp = {
+                ...action.payload,
+                createdAt: action.payload.createdAt || new Date().toISOString(),
+                lastMessageDate: action.payload.lastMessageDate || new Date().toISOString()
+            };
+            state.list.push(chatWithTimestamp);
         },
         updateChat(state, action: PayloadAction<{id: string, updates: Partial<Chat>}>) {
             const index = state.list.findIndex(c => c.id === action.payload.id);

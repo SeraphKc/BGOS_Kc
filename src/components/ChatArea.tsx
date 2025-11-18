@@ -78,6 +78,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     // Get current user for personalized greeting
     const currentUser = useAppSelector((state) => state.user.currentUser);
 
+    // Store greeting once when initial state is shown to prevent it from changing while typing
+    const [initialGreeting, setInitialGreeting] = useState<string>('');
+
     // Time-based greeting function with variety
     const getTimeBasedGreeting = (fullName: string): string => {
         const hour = new Date().getHours(); // Uses system local time
@@ -141,8 +144,20 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         return greeting;
     };
 
-    // Generate greeting
-    const greeting = currentUser?.name ? getTimeBasedGreeting(currentUser.name) : 'Welcome';
+    // Update the greeting only when showInitialState becomes true (when starting a new chat)
+    useEffect(() => {
+        if (showInitialState && !initialGreeting) {
+            const newGreeting = currentUser?.name ? getTimeBasedGreeting(currentUser.name) : 'Welcome';
+            setInitialGreeting(newGreeting);
+        }
+        // Reset greeting when leaving initial state
+        if (!showInitialState) {
+            setInitialGreeting('');
+        }
+    }, [showInitialState, currentUser?.name]);
+
+    // Use the stored greeting to prevent it from changing while typing
+    const greeting = initialGreeting || (currentUser?.name ? getTimeBasedGreeting(currentUser.name) : 'Welcome');
 
     // state для s2s ассистента
     const [voiceState, setVoiceState] = useState<{
