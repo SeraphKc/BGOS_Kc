@@ -1,11 +1,13 @@
-import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, Text, TouchableOpacity, Animated } from 'react-native';
 import { ChatHistory } from '@bgos/shared-types';
 import { COLORS, getInitials, getAvatarColor } from '@bgos/shared-logic';
 import { VoiceMessagePlayer } from './VoiceMessagePlayer';
 import { useSelector } from 'react-redux';
 import { RootState } from '@bgos/shared-state';
 import Markdown from 'react-native-markdown-display';
+import Clipboard from '@react-native-clipboard/clipboard';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 interface MessageBubbleProps {
   message: ChatHistory;
@@ -14,6 +16,15 @@ interface MessageBubbleProps {
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isUser = message.sender === 'user';
   const user = useSelector((state: RootState) => state.user.currentUser);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (message.text) {
+      Clipboard.setString(message.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    }
+  };
 
   const logUserTextRender = (text: string) => {
     try {
@@ -79,10 +90,46 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     <View style={styles.messageContainer}>
       {isUser ? (
         // User message aligned to the right with dark background and avatar
-        <View style={styles.userMessageWrapper}>
-          <View style={styles.userBubble}>
-            {renderUserAvatar()}
-            <View style={styles.userContentWrapper}>
+        <View>
+          <View style={styles.userMessageWrapper}>
+            <View style={styles.userBubble}>
+              {renderUserAvatar()}
+              <View style={styles.userContentWrapper}>
+                {message.isAudio && message.audioData && message.audioMimeType && message.duration ? (
+                  <VoiceMessagePlayer
+                    audioData={message.audioData}
+                    audioMimeType={message.audioMimeType}
+                    duration={message.duration}
+                    fileName={message.audioFileName}
+                  />
+                ) : (
+                  message.text && message.text.length > 0 ? (
+                    renderText(message.text, true)
+                  ) : (
+                    <Text style={styles.userText}>[Empty message]</Text>
+                  )
+                )}
+              </View>
+            </View>
+          </View>
+          {/* Copy button for user messages */}
+          {message.text && (
+            <View style={styles.copyButtonContainerRight}>
+              <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
+                <Icon
+                  name={copied ? 'check' : 'content-copy'}
+                  size={16}
+                  color={copied ? '#F4D03F' : '#888'}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      ) : (
+        // Assistant message aligned to the left with transparent background
+        <View>
+          <View style={styles.assistantMessageWrapper}>
+            <View style={styles.assistantBubble}>
               {message.isAudio && message.audioData && message.audioMimeType && message.duration ? (
                 <VoiceMessagePlayer
                   audioData={message.audioData}
@@ -92,33 +139,25 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                 />
               ) : (
                 message.text && message.text.length > 0 ? (
-                  renderText(message.text, true)
+                  renderText(message.text, false)
                 ) : (
-                  <Text style={styles.userText}>[Empty message]</Text>
+                  <Text style={styles.assistantText}>[Empty message]</Text>
                 )
               )}
             </View>
           </View>
-        </View>
-      ) : (
-        // Assistant message aligned to the left with transparent background
-        <View style={styles.assistantMessageWrapper}>
-          <View style={styles.assistantBubble}>
-            {message.isAudio && message.audioData && message.audioMimeType && message.duration ? (
-              <VoiceMessagePlayer
-                audioData={message.audioData}
-                audioMimeType={message.audioMimeType}
-                duration={message.duration}
-                fileName={message.audioFileName}
-              />
-            ) : (
-              message.text && message.text.length > 0 ? (
-                renderText(message.text, false)
-              ) : (
-                <Text style={styles.assistantText}>[Empty message]</Text>
-              )
-            )}
-          </View>
+          {/* Copy button for assistant messages */}
+          {message.text && (
+            <View style={styles.copyButtonContainerRight}>
+              <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
+                <Icon
+                  name={copied ? 'check' : 'content-copy'}
+                  size={16}
+                  color={copied ? '#F4D03F' : '#888'}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -190,6 +229,17 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: 'rgba(255, 255, 255, 0.95)', // Exact desktop color
     fontFamily: 'Styrene-B',
+  },
+  // Copy button styles
+  copyButtonContainerRight: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+  },
+  copyButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
 });
 

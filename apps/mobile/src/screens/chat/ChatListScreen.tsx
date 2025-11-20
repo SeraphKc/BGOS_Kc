@@ -3,7 +3,7 @@ import { View, FlatList, StyleSheet, RefreshControl } from 'react-native';
 import { List, FAB, Text, ActivityIndicator } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, ChatActions } from '@bgos/shared-state';
-import { COLORS, getRelativeTime } from '@bgos/shared-logic';
+import { COLORS, getRelativeTimeFromChat, compareChatsByDate } from '@bgos/shared-logic';
 import { useLoadInitialData } from '../../hooks/useLoadInitialData';
 import { fetchAssistantsWithChats } from '@bgos/shared-services';
 
@@ -62,12 +62,12 @@ export default function ChatListScreen({ navigation }: any) {
         </View>
       ) : (
         <FlatList
-          data={chats}
+          data={[...chats].sort(compareChatsByDate)}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <List.Item
               title={item.title}
-              description={getAssistantName(item.assistantId)}
+              description={`${getAssistantName(item.assistantId)} • Last message ${getRelativeTimeFromChat(item)}`}
               left={(props) => (
                 <List.Icon {...props} icon="message" color={COLORS.PRIMARY_1} />
               )}

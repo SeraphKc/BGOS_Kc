@@ -6,4 +6,6 @@ export type Chat = {
     feedbackPeriod?: Date;
     isStarred?: boolean;
     starOrder?: number;
+    lastMessageDate?: string;  // ISO timestamp of the last message
+    createdAt?: string;        // ISO timestamp of chat creation
 };
