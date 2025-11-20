@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   copyButton: {
     padding: 8,
     borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: COLORS.MAIN_BG,
   },
 });
 
