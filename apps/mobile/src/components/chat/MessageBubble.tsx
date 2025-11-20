@@ -7,7 +7,9 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@bgos/shared-state';
 import Markdown from 'react-native-markdown-display';
 import Clipboard from '@react-native-clipboard/clipboard';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Toast from 'react-native-toast-message';
+import { CopyIcon } from './CopyIcon';
+import { AnimatedCheckmark } from './AnimatedCheckmark';
 
 interface MessageBubbleProps {
   message: ChatHistory;
@@ -22,6 +24,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     if (message.text) {
       Clipboard.setString(message.text);
       setCopied(true);
+
+      // Show toast notification
+      Toast.show({
+        type: 'success',
+        text1: 'Copied to clipboard',
+        position: 'bottom',
+        visibilityTime: 2000,
+        bottomOffset: 100,
+      });
+
       setTimeout(() => setCopied(false), 1000);
     }
   };
@@ -116,11 +128,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           {message.text && (
             <View style={styles.copyButtonContainerRight}>
               <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
-                <Icon
-                  name={copied ? 'check' : 'content-copy'}
-                  size={16}
-                  color={copied ? '#F4D03F' : '#888'}
-                />
+                {copied ? (
+                  <AnimatedCheckmark size={16} />
+                ) : (
+                  <CopyIcon size={20} color="#888" />
+                )}
               </TouchableOpacity>
             </View>
           )}
@@ -150,11 +162,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
           {message.text && (
             <View style={styles.copyButtonContainerRight}>
               <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
-                <Icon
-                  name={copied ? 'check' : 'content-copy'}
-                  size={16}
-                  color={copied ? '#F4D03F' : '#888'}
-                />
+                {copied ? (
+                  <AnimatedCheckmark size={16} />
+                ) : (
+                  <CopyIcon size={20} color="#888" />
+                )}
               </TouchableOpacity>
             </View>
           )}

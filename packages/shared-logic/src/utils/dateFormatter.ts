@@ -1,4 +1,4 @@
-import { Chat } from '../types/Chat';
+import { Chat } from '@bgos/shared-types';
 
 /**
  * Formats a timestamp into a relative time string like "Last message 2 hours ago"

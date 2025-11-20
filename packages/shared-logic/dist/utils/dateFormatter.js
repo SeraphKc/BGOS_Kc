@@ -1,21 +1,40 @@
 /**
  * Formats a timestamp into a relative time string like "Last message 2 hours ago"
- * Since we don't have lastMessageDate, we'll use the chat ID as a proxy
+ * Uses the chat's lastMessageDate or createdAt field
  */
-export function getRelativeTimeFromChatId(chatId) {
-    // For now, we'll return a placeholder since we're using chat ID as date proxy
-    // In a real implementation, this would parse a timestamp from the ID or use actual date field
-    // Extract numeric portion from chat ID if possible
-    const numericPart = chatId.replace(/\D/g, '');
-    if (numericPart) {
-        const idNumber = parseInt(numericPart, 10);
-        const now = Date.now();
-        // Create a mock timestamp based on ID (assuming lower IDs are older)
-        // This is a placeholder - real implementation would use actual message dates
-        const mockTimestamp = now - (idNumber % 10000) * 60000; // Mock: subtract minutes based on ID
-        return getRelativeTime(mockTimestamp);
+export function getRelativeTimeFromChat(chat) {
+    // Try to use lastMessageDate first, then fall back to createdAt
+    const dateString = chat.lastMessageDate || chat.createdAt;
+    if (dateString) {
+        const timestamp = new Date(dateString).getTime();
+        if (!isNaN(timestamp)) {
+            return getRelativeTime(timestamp);
+        }
     }
+    // Fallback: use chat ID as a very rough proxy (for backward compatibility)
+    return getRelativeTimeFromChatId(chat.id);
+}
+export function getRelativeTimeFromChatId(chatId) {
+    // This is a fallback for legacy chats without timestamps
+    // New chats will have timestamps via pushChat reducer
     return 'Recently';
+}
+/**
+ * Compare two chats by their timestamp (most recent first)
+ * Used for sorting chat lists
+ */
+export function compareChatsByDate(a, b) {
+    const aDate = a.lastMessageDate || a.createdAt;
+    const bDate = b.lastMessageDate || b.createdAt;
+    if (aDate && bDate) {
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+    }
+    // Fallback to ID comparison if no dates available
+    if (aDate)
+        return -1;
+    if (bDate)
+        return 1;
+    return b.id.localeCompare(a.id);
 }
 export function getRelativeTime(timestamp) {
     const now = Date.now();

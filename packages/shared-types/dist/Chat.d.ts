@@ -6,4 +6,6 @@ export type Chat = {
     feedbackPeriod?: Date;
     isStarred?: boolean;
     starOrder?: number;
+    lastMessageDate?: string;
+    createdAt?: string;
 };

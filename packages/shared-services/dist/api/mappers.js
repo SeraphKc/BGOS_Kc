@@ -17,6 +17,8 @@ export function mapChat(chat) {
         title: chat.title,
         unread: Number(chat.unread),
         feedbackPeriod: chat.feedback_period ? new Date(chat.feedback_period) : undefined,
+        lastMessageDate: chat.last_message_date || chat.lastMessageDate,
+        createdAt: chat.created_at || chat.createdAt,
     };
 }
 export function mapChatHistory(chatHistory) {
