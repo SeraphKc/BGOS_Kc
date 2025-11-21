@@ -110,7 +110,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                         {message.sender === 'user' ? (
                             // User message with avatar and background
                             <div className="flex flex-col gap-2 w-full group">
-                                <div className="flex items-center gap-3 px-4 py-3" style={{ backgroundColor: 'rgb(15, 16, 13)', borderRadius: '8px', maxWidth: 'fit-content' }}>
+                                <div className="flex items-start gap-3 px-4 py-3" style={{ backgroundColor: 'rgb(15, 16, 13)', borderRadius: '8px', maxWidth: 'fit-content' }}>
                                     {userAvatar}
                                     <div>
                                         <MessageItem
