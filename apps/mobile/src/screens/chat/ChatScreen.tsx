@@ -276,10 +276,14 @@ export default function ChatScreen({ route, navigation }: any) {
   }, [chatId, dispatch]);
 
   // Set transcript handler in context when chatId changes
+  // Note: handleTranscriptReady is intentionally excluded from dependencies to prevent
+  // the handler from being reset every time messages are loaded, which would interfere
+  // with chat history loading
   useEffect(() => {
     console.log('ChatScreen - Setting transcript handler for chatId:', chatId);
     setTranscriptReadyHandler(handleTranscriptReady);
-  }, [chatId, setTranscriptReadyHandler, handleTranscriptReady]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, setTranscriptReadyHandler]);
 
   if (loading && filteredMessages.length === 0) {
     return (
