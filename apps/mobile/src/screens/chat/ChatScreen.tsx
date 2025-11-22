@@ -48,18 +48,23 @@ export default function ChatScreen({ route, navigation }: any) {
   const assistants = useSelector((state: RootState) => state.assistants.list);
   const selectedAssistantId = useSelector((state: RootState) => state.assistants.selectedAssistantId);
 
-  // Filter messages for current chat only, excluding queued messages
+  // Filter messages for current chat - INCLUDE queued messages now
   const filteredMessages = useMemo(() => {
-    return chatHistory.filter(message =>
-      message.chatId === chatId && message.status !== 'queued'
-    );
-  }, [chatHistory, chatId]);
+    const filtered = chatHistory.filter(message => message.chatId === chatId);
 
-  // Get queued messages to display at bottom
-  const queuedMessages = useMemo(() => {
-    return chatHistory.filter(message =>
-      message.chatId === chatId && message.status === 'queued'
-    );
+    // Sort by sentDate chronologically so queued messages appear in correct order
+    const sorted = filtered.sort((a, b) => {
+      const dateA = a.sentDate ? new Date(a.sentDate).getTime() : 0;
+      const dateB = b.sentDate ? new Date(b.sentDate).getTime() : 0;
+      return dateA - dateB;
+    });
+
+    console.log('🟢 ChatScreen - Filtered messages:', {
+      total: chatHistory.length,
+      filtered: sorted.length,
+      chatId,
+    });
+    return sorted;
   }, [chatHistory, chatId]);
 
   // Debug logging for chat history - DISABLED to prevent unnecessary re-renders
@@ -392,18 +397,6 @@ export default function ChatScreen({ route, navigation }: any) {
           }
         />
       )}
-      {/* Queued messages overlay - displayed above input */}
-      {queuedMessages.length > 0 && (
-        <View style={styles.queuedMessagesOverlay}>
-          {queuedMessages.map((message) => (
-            <View key={message.id} style={styles.queuedMessageContainer}>
-              <Text style={styles.queuedMessageText} numberOfLines={2}>
-                {message.text || 'Voice message'}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
 
       <MessageInput
         onSend={handleSend}
@@ -515,26 +508,6 @@ const styles = StyleSheet.create({
   messageList: {
     flexGrow: 1,
     padding: 16,
-  },
-  queuedMessagesOverlay: {
-    position: 'absolute',
-    bottom: 80, // Above the input field
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(48, 48, 46, 0.95)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
-  },
-  queuedMessageContainer: {
-    marginVertical: 4,
-  },
-  queuedMessageText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.6)',
-    fontStyle: 'italic',
-    fontFamily: 'Styrene-B',
+    paddingBottom: 80, // Extra space at bottom so queued messages don't overlap input
   },
 });

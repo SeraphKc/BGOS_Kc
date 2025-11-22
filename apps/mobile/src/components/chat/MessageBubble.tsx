@@ -26,6 +26,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   const isUser = message.sender === 'user';
   const user = useSelector((state: RootState) => state.user.currentUser);
   const [copied, setCopied] = useState(false);
+  const isQueued = message.status === 'queued';
 
   const handleCopy = () => {
     if (message.text) {
@@ -89,14 +90,14 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
     if (hasMarkdown(text)) {
       return (
-        <Markdown style={isUserMessage ? markdownUserStyles : markdownAssistantStyles}>
+        <Markdown style={isUserMessage ? (isQueued ? markdownUserQueuedStyles : markdownUserStyles) : markdownAssistantStyles}>
           {text}
         </Markdown>
       );
     } else {
       return (
         <Text
-          style={isUserMessage ? styles.userText : styles.assistantText}
+          style={isUserMessage ? (isQueued ? styles.userTextQueued : styles.userText) : styles.assistantText}
           onLayout={isUserMessage ? handleUserTextLayout : undefined}
         >
           {text}
@@ -113,7 +114,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           <View style={styles.userMessageWrapper}>
             <View style={[
               styles.userBubble,
-              message.status === 'queued' && styles.queuedMessage,
+              isQueued && styles.queuedMessageBubble,
               message.status === 'failed' && styles.failedMessage
             ]}>
               {renderUserAvatar()}
@@ -131,6 +132,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
                   ) : (
                     <Text style={styles.userText}>[Empty message]</Text>
                   )
+                )}
+                {/* Queued status subscript */}
+                {isQueued && (
+                  <Text style={styles.queuedSubscript}>(queued)</Text>
                 )}
               </View>
             </View>
@@ -253,7 +258,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Styrene-B',
     flexShrink: 1,
   },
-  queuedMessage: {
+  userTextQueued: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.5)', // Grayed out for queued
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+    flexShrink: 1,
+  },
+  queuedMessageBubble: {
     opacity: 0.7,
   },
   failedMessage: {
@@ -312,7 +325,113 @@ const styles = StyleSheet.create({
     fontFamily: 'Styrene-B',
     flex: 1,
   },
+  queuedSubscript: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
 });
+
+// Markdown styles for queued user messages
+const markdownUserQueuedStyles = {
+  body: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+  },
+  heading1: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+  },
+  heading2: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+  },
+  heading3: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+  },
+  paragraph: {
+    marginBottom: 8,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+  },
+  strong: {
+    fontWeight: 'bold',
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontStyle: 'italic',
+  },
+  em: {
+    fontStyle: 'italic',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  code_inline: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 2,
+    borderRadius: 3,
+    fontFamily: 'monospace',
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontStyle: 'italic',
+  },
+  code_block: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 10,
+    borderRadius: 5,
+    fontFamily: 'monospace',
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontStyle: 'italic',
+  },
+  fence: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 10,
+    borderRadius: 5,
+    fontFamily: 'monospace',
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontStyle: 'italic',
+  },
+  bullet_list: {
+    marginBottom: 8,
+  },
+  ordered_list: {
+    marginBottom: 8,
+  },
+  list_item: {
+    marginBottom: 4,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: 'Styrene-B',
+    fontStyle: 'italic',
+  },
+  blockquote: {
+    borderLeftWidth: 4,
+    borderLeftColor: 'rgba(255, 255, 255, 0.3)',
+    paddingLeft: 10,
+    fontStyle: 'italic',
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  link: {
+    color: 'rgba(255, 215, 0, 0.5)',
+    textDecorationLine: 'underline',
+    fontStyle: 'italic',
+  },
+};
 
 // Markdown styles for user messages
 const markdownUserStyles = {

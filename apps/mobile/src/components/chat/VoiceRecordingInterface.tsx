@@ -9,7 +9,7 @@ import {
   Platform,
   Vibration,
 } from 'react-native';
-import { COLORS } from '@bgos/shared-logic';
+import { COLORS, getColorWithOpacity } from '@bgos/shared-logic';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(48, 48, 46, 0.95)', // Semi-transparent for blur-like effect
+    backgroundColor: getColorWithOpacity(COLORS.INPUT_BG, 0.95),
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderLeftWidth: 0.5,
     borderRightWidth: 0.5,
-    borderColor: 'rgba(255, 217, 0, 0.2)', // Subtle yellow border
+    borderColor: getColorWithOpacity(COLORS.PRIMARY_1, 0.2),
     zIndex: 1000,
     shadowColor: '#000',
     shadowOffset: {
@@ -186,7 +186,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 12,
-    // Additional depth with backdrop
     backdropFilter: 'blur(10px)', // For web support
   },
   gradientOverlay: {
@@ -195,7 +194,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(58, 58, 54, 0.2)', // Subtle gradient overlay
+    backgroundColor: getColorWithOpacity(COLORS.INPUT_BG, 0.2),
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },
@@ -203,7 +202,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgb(15, 16, 13)', // User message background color
+    backgroundColor: COLORS.MAIN_BG,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -217,7 +216,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   cancelIcon: {
-    color: '#FFFFFF', // White X
+    color: COLORS.WHITE_1,
     fontSize: 30,
     fontWeight: '400',
     lineHeight: 30,
@@ -250,11 +249,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.PRIMARY_1, // Yellow background
+    backgroundColor: COLORS.PRIMARY_1,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.3)', // Subtle white border for contrast
+    borderColor: getColorWithOpacity(COLORS.WHITE_1, 0.3),
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -271,11 +270,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendIcon: {
-    color: '#FFFFFF', // White arrow
+    color: COLORS.WHITE_1,
     fontSize: 24,
     fontWeight: '700',
     lineHeight: 24,
     textAlign: 'center',
-    marginTop: -2, // Fine-tune vertical centering
+    marginTop: -2,
   },
 });

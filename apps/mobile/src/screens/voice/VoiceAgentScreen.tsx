@@ -180,6 +180,8 @@ export const VoiceAgentScreen: React.FC = () => {
       onTranscriptReady(conversationIdRef.current);
     }
 
+
+
     console.log('🟡 Navigating back');
     if (navigation.canGoBack()) {
       navigation.goBack();

@@ -22,6 +22,7 @@ React Native mobile application for BG OS AI Assistant (Android/iOS).
 - **Axios** - HTTP client
 
 ## Project Structure
+``  
 
 ```
 apps/mobile/

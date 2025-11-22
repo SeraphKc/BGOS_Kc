@@ -218,10 +218,13 @@ export const useChatHistory = (
     const currentMessage = messageQueue[0];
 
     try {
-      // Update message status to sending
-      dispatch(ChatHistoryActions.updateMessageStatus({
+      // Update message status to sending and update timestamp so it appears after AI response
+      dispatch(ChatHistoryActions.updateMessage({
         id: currentMessage.id,
-        status: 'sending',
+        updates: {
+          status: 'sending',
+          sentDate: new Date().toISOString(), // Update timestamp to now
+        },
       }));
 
       // Send the message
