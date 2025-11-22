@@ -10,12 +10,19 @@ import Clipboard from '@react-native-clipboard/clipboard';
 import Toast from 'react-native-toast-message';
 import { CopyIcon } from './CopyIcon';
 import { AnimatedCheckmark } from './AnimatedCheckmark';
+import Logo from '../../assets/logo.svg';
 
 interface MessageBubbleProps {
   message: ChatHistory;
+  isLastAssistantMessage?: boolean;
+  assistantName?: string;
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({
+  message,
+  isLastAssistantMessage = false,
+  assistantName = 'Assistant',
+}) => {
   const isUser = message.sender === 'user';
   const user = useSelector((state: RootState) => state.user.currentUser);
   const [copied, setCopied] = useState(false);
@@ -126,14 +133,6 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   )
                 )}
               </View>
-              {/* Status badge for queued/sending messages */}
-              {message.status && ['queued', 'sending'].includes(message.status) && (
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>
-                    {message.status === 'queued' ? '⏱' : '📤'}
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
           {/* Copy button for user messages */}
@@ -188,6 +187,16 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   <CopyIcon size={20} color="#888" />
                 )}
               </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Disclaimer for last assistant message */}
+          {isLastAssistantMessage && (
+            <View style={styles.disclaimerContainer}>
+              <Logo width={16} height={16} style={styles.disclaimerIcon} />
+              <Text style={styles.disclaimerText}>
+                {assistantName} can make mistakes. Please double check responses.
+              </Text>
             </View>
           )}
         </View>
@@ -245,22 +254,12 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   queuedMessage: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   failedMessage: {
     opacity: 0.5,
     borderWidth: 1,
     borderColor: 'rgba(255, 0, 0, 0.5)',
-  },
-  statusBadge: {
-    marginLeft: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  statusBadgeText: {
-    fontSize: 12,
   },
   // Assistant message styles - aligned to the LEFT
   assistantMessageWrapper: {
@@ -296,6 +295,22 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 6,
     backgroundColor: COLORS.MAIN_BG,
+  },
+  disclaimerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingHorizontal: 4,
+  },
+  disclaimerIcon: {
+    marginRight: 8,
+    opacity: 0.7,
+  },
+  disclaimerText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontFamily: 'Styrene-B',
+    flex: 1,
   },
 });
 

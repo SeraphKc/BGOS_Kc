@@ -48,9 +48,18 @@ export default function ChatScreen({ route, navigation }: any) {
   const assistants = useSelector((state: RootState) => state.assistants.list);
   const selectedAssistantId = useSelector((state: RootState) => state.assistants.selectedAssistantId);
 
-  // Filter messages for current chat only
+  // Filter messages for current chat only, excluding queued messages
   const filteredMessages = useMemo(() => {
-    return chatHistory.filter(message => message.chatId === chatId);
+    return chatHistory.filter(message =>
+      message.chatId === chatId && message.status !== 'queued'
+    );
+  }, [chatHistory, chatId]);
+
+  // Get queued messages to display at bottom
+  const queuedMessages = useMemo(() => {
+    return chatHistory.filter(message =>
+      message.chatId === chatId && message.status === 'queued'
+    );
   }, [chatHistory, chatId]);
 
   // Debug logging for chat history - DISABLED to prevent unnecessary re-renders
@@ -363,7 +372,19 @@ export default function ChatScreen({ route, navigation }: any) {
           ref={flatListRef}
           data={filteredMessages}
           keyExtractor={(item) => item.id || ''}
-          renderItem={({ item }) => <MessageBubble message={item} />}
+          renderItem={({ item, index }) => {
+            // Check if this is the last assistant message
+            const isLastAssistant = item.sender === 'assistant' &&
+              index === filteredMessages.length - 1;
+
+            return (
+              <MessageBubble
+                message={item}
+                isLastAssistantMessage={isLastAssistant}
+                assistantName={selectedAssistant?.name || 'Assistant'}
+              />
+            );
+          }}
           contentContainerStyle={styles.messageList}
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListFooterComponent={
@@ -371,6 +392,19 @@ export default function ChatScreen({ route, navigation }: any) {
           }
         />
       )}
+      {/* Queued messages overlay - displayed above input */}
+      {queuedMessages.length > 0 && (
+        <View style={styles.queuedMessagesOverlay}>
+          {queuedMessages.map((message) => (
+            <View key={message.id} style={styles.queuedMessageContainer}>
+              <Text style={styles.queuedMessageText} numberOfLines={2}>
+                {message.text || 'Voice message'}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       <MessageInput
         onSend={handleSend}
         disabled={creatingChat || fetchingTranscript || (chatId === 'new' && !selectedAssistantId)}
@@ -481,5 +515,26 @@ const styles = StyleSheet.create({
   messageList: {
     flexGrow: 1,
     padding: 16,
+  },
+  queuedMessagesOverlay: {
+    position: 'absolute',
+    bottom: 80, // Above the input field
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(48, 48, 46, 0.95)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  queuedMessageContainer: {
+    marginVertical: 4,
+  },
+  queuedMessageText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontStyle: 'italic',
+    fontFamily: 'Styrene-B',
   },
 });
