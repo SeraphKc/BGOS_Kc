@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {useWebhook} from "../hooks/useWebhoock";
+import {useChatQueue} from "../hooks/useChatQueue";
 import ChatInput from '../components/ChatInput';
 import ChatMessages from './ChatMessages';
 
@@ -56,7 +57,17 @@ const ChatArea: React.FC<ChatAreaProps> = ({
     resetUserInteractedRef,
     forceSelectAssistant
 }) => {
-    const {sendMessage, isLoading: isLoadingWebhook, setWebhookLoading, error} = useWebhook(currentAssistant?.webhookUrl, userId);
+    // Use old webhook hook for initial chat setup (still needed for handleNewChat)
+    const {sendMessage: webhookSendMessage, isLoading: isLoadingWebhook, setWebhookLoading, error} = useWebhook(currentAssistant?.webhookUrl, userId);
+
+    // Use new queue hook for message sending (non-blocking, with status)
+    const {sendMessage: queueSendMessage, isProcessing: isProcessingQueue, queueLength} = useChatQueue(
+        currentChat?.id || 'new',
+        currentAssistant?.webhookUrl || '',
+        userId,
+        updateChatHistory
+    );
+
     const { showNotification } = useNotification();
     const [input, setInput] = useState('');
     const [showInitialState, setShowInitialState] = useState(false);
@@ -235,7 +246,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
     const handleTextMessage = async (e: React.FormEvent | React.KeyboardEvent) => {
         e.preventDefault();
-        if (!input.trim() && attachedFiles.length === 0 || isLoading) return;
+        // Allow queuing messages while processing (non-blocking)
+        if (!input.trim() && attachedFiles.length === 0) return;
 
         const currentInput = input;
         setInput('');
@@ -243,41 +255,38 @@ const ChatArea: React.FC<ChatAreaProps> = ({
         setHasUserInteracted(true);
 
         try {
-            let userMessage: ChatHistory = {
-                text: currentInput.trim() || (attachedFiles.length > 0 ? `[${attachedFiles.length} file(s) attached]` : ''),
-                sender: 'user',
-                isAudio: false,
-                hasAttachment: attachedFiles.length > 0,
-                files: attachedFiles.length > 0 ? attachedFiles : undefined
-            }
+            // Convert attachedFiles to the format expected by the queue
+            const files = attachedFiles.length > 0 ? attachedFiles : undefined;
 
-            let assistantAndChatDto: AssistantAndChatDto;
-            let messageToSend: ChatHistory;
             if (isNewChat) {
+                // For new chats, create the chat first, then queue the message
                 setWebhookLoading();
+                const userMessage: ChatHistory = {
+                    text: currentInput.trim() || (attachedFiles.length > 0 ? `[${attachedFiles.length} file(s) attached]` : ''),
+                    sender: 'user',
+                    isAudio: false,
+                    hasAttachment: attachedFiles.length > 0,
+                    files: files
+                };
                 updateChatHistoryLocal(userMessage);
-                assistantAndChatDto = await handleNewChat(currentInput.trim() || (attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : ''));
+
+                const assistantAndChatDto = await handleNewChat(currentInput.trim() || (attachedFiles.length > 0 ? `${attachedFiles.length} file(s) attached` : ''));
+
                 if (assistantAndChatDto.chat.id) {
-                    userMessage = {
-                        ...userMessage,
-                        chatId: assistantAndChatDto.chat.id
-                    }
-                    messageToSend = await onChatMessage(userMessage);
+                    // Queue the message with the new chat ID
+                    queueSendMessage(
+                        currentInput.trim(),
+                        files,
+                        undefined, // no voice data
+                        assistantAndChatDto.chat.id // override chat ID
+                    );
                 }
             } else {
-                messageToSend = await onChatMessage(userMessage);
+                // Existing chat - just queue the message (non-blocking!)
+                queueSendMessage(currentInput.trim(), files);
             }
 
-            const messageFromServer = await sendMessage({
-                message: messageToSend,
-                assistantUrl: currentAssistant?.webhookUrl ? currentAssistant.webhookUrl :
-                    (assistantAndChatDto?.assistant?.webhookUrl ? assistantAndChatDto.assistant.webhookUrl : undefined),
-                audio: undefined
-            });
-
-            updateChatHistory(messageFromServer, isNewChat);
-
-            // clear attached files
+            // Clear attached files
             setAttachedFiles([]);
             setAttachedFilePreviews({});
 
@@ -489,7 +498,8 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                     Error: {error}
                 </div>
             )}
-            {isLoading && (
+            {/* Only show blocking overlay for initial chat creation, not for queue processing */}
+            {isLoadingWebhook && showInitialState && (
                 <div style={{
                     position: 'absolute',
                     top: 0, left: 0, right: 0, bottom: 0,

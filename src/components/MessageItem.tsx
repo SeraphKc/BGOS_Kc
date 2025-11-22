@@ -466,18 +466,46 @@ const MessageItem: React.FC<MessageItemProps> = ({
         }
     };
 
+    // Check message status for visual feedback
+    const isQueued = message.status === 'queued';
+    const isSending = message.status === 'sending';
+    const isFailed = message.status === 'failed';
+    const hasStatus = isQueued || isSending || isFailed;
+
     return (
         <div
             className={`text-white font-medium w-full break-words flex flex-col ${message.sender === 'user' ? 'items-center' : 'items-start text-left'}`}
-            style={{fontSize: '16px'}}>
+            style={{
+                fontSize: '16px',
+                opacity: isQueued ? 0.5 : 1, // Grayed out for queued messages
+                transition: 'opacity 0.2s ease'
+            }}>
             {message.text && (
                 <div
                     className={`${hasImageData || hasAudioData || hasVideoData || hasMultiImages ? 'mb-2' : ''} w-full max-w-4xl`}
                     style={{
                         fontFamily: 'inherit',
-                        lineHeight: '26px'
+                        lineHeight: '26px',
+                        fontStyle: isQueued ? 'italic' : 'normal' // Italic for queued messages
                     }}>
                     {renderTextWithMarkdown(message.text)}
+
+                    {/* Status indicator for user messages */}
+                    {message.sender === 'user' && hasStatus && (
+                        <span style={{
+                            display: 'inline-block',
+                            marginLeft: '8px',
+                            fontSize: '11px',
+                            color: isQueued ? 'rgb(156, 163, 175)' : isSending ? 'rgb(96, 165, 250)' : 'rgb(239, 68, 68)',
+                            fontStyle: 'normal',
+                            fontWeight: '400',
+                            verticalAlign: 'bottom'
+                        }}>
+                            {isQueued && '(queued)'}
+                            {isSending && '(sending...)'}
+                            {isFailed && '(failed)'}
+                        </span>
+                    )}
                 </div>
             )}
 

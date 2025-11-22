@@ -1,18 +1,11 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { ChatHistoryActions } from '@bgos/shared-state';
 import { fetchChatHistory } from '@bgos/shared-services';
+import { useMessageQueue, type QueuedMessage } from '@bgos/shared-logic';
 import { sendMessageToWebhook } from '../services/webhookService';
 import { createChat } from '../services/chatService';
 import { Chat, ChatHistory } from '@bgos/shared-types';
-
-type QueuedMessage = {
-  id: string;
-  text: string;
-  files?: any[];
-  voiceData?: any;
-  overrideChatId?: string;
-};
 
 export const useChatHistory = (
   userId: string,
@@ -24,8 +17,6 @@ export const useChatHistory = (
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creatingChat, setCreatingChat] = useState(false);
-  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
-  const [isProcessingQueue, setIsProcessingQueue] = useState(false);
   const dispatch = useDispatch();
 
   const loadChatHistory = useCallback(async () => {
@@ -209,63 +200,27 @@ export const useChatHistory = (
   }, [chatId, userId, assistantWebhookUrl, dispatch]);
 
   /**
-   * Process the message queue sequentially (FIFO)
+   * Platform-specific send implementation for the message queue
+   * This is injected into the shared useMessageQueue hook
    */
-  const processQueue = useCallback(async () => {
-    if (isProcessingQueue || messageQueue.length === 0) return;
-
-    setIsProcessingQueue(true);
-    const currentMessage = messageQueue[0];
-
-    try {
-      // Update message status to sending and update timestamp so it appears after AI response
-      dispatch(ChatHistoryActions.updateMessage({
-        id: currentMessage.id,
-        updates: {
-          status: 'sending',
-          sentDate: new Date().toISOString(), // Update timestamp to now
-        },
-      }));
-
-      // Send the message
-      await sendMessageWithChatId(
-        currentMessage.text,
-        currentMessage.files,
-        currentMessage.voiceData,
-        currentMessage.overrideChatId,
-        true // Skip adding user message (already added)
-      );
-
-      // Update message status to sent
-      dispatch(ChatHistoryActions.updateMessageStatus({
-        id: currentMessage.id,
-        status: 'sent',
-      }));
-
-      // Remove from queue
-      setMessageQueue(prev => prev.slice(1));
-    } catch (err) {
-      console.error('Error processing queued message:', err);
-      // Update message status to failed
-      dispatch(ChatHistoryActions.updateMessageStatus({
-        id: currentMessage.id,
-        status: 'failed',
-      }));
-      // Remove from queue even on failure
-      setMessageQueue(prev => prev.slice(1));
-    } finally {
-      setIsProcessingQueue(false);
-    }
-  }, [isProcessingQueue, messageQueue, sendMessageWithChatId, dispatch]);
+  const sendMessageImpl = useCallback(async (queuedMsg: QueuedMessage) => {
+    await sendMessageWithChatId(
+      queuedMsg.text,
+      queuedMsg.files,
+      queuedMsg.voiceData,
+      queuedMsg.overrideChatId,
+      true // Skip adding user message (already added)
+    );
+  }, [sendMessageWithChatId]);
 
   /**
-   * Effect to automatically process queue when messages are added
+   * Use shared message queue hook for queue management
+   * The hook handles FIFO processing, status updates, and error handling
    */
-  useEffect(() => {
-    if (!isProcessingQueue && messageQueue.length > 0 && !loading) {
-      processQueue();
-    }
-  }, [messageQueue, isProcessingQueue, loading, processQueue]);
+  const { enqueueMessage, isProcessing: isProcessingQueue, queueLength } = useMessageQueue({
+    onSendMessage: sendMessageImpl,
+    dispatch,
+  });
 
   /**
    * New sendMessage function that adds to queue instead of blocking
@@ -328,26 +283,15 @@ export const useChatHistory = (
     // Show user message immediately
     dispatch(ChatHistoryActions.addMessage(tempMessage));
 
-    // If currently processing, add to queue
-    if (loading || isProcessingQueue || messageQueue.length > 0) {
-      console.log('📝 Adding message to queue');
-      setMessageQueue(prev => [...prev, {
-        id: messageId,
-        text,
-        files,
-        voiceData,
-      }]);
-    } else {
-      // Process immediately
-      console.log('📤 Sending message immediately');
-      setMessageQueue([{
-        id: messageId,
-        text,
-        files,
-        voiceData,
-      }]);
-    }
-  }, [chatId, assistantWebhookUrl, loading, isProcessingQueue, messageQueue, dispatch]);
+    // Enqueue message for processing (shared queue hook handles the rest)
+    enqueueMessage({
+      id: messageId,
+      chatId,
+      text,
+      files,
+      voiceData,
+    });
+  }, [chatId, assistantWebhookUrl, loading, isProcessingQueue, queueLength, enqueueMessage, dispatch]);
 
   return {
     loadChatHistory,
