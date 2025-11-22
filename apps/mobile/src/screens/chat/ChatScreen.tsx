@@ -373,7 +373,7 @@ export default function ChatScreen({ route, navigation }: any) {
       )}
       <MessageInput
         onSend={handleSend}
-        disabled={loading || creatingChat || fetchingTranscript || (chatId === 'new' && !selectedAssistantId)}
+        disabled={creatingChat || fetchingTranscript || (chatId === 'new' && !selectedAssistantId)}
         chatId={chatId}
         placeholder={chatId === 'new' && !selectedAssistantId ? 'Loading assistant...' : 'Type a message...'}
       />

@@ -104,14 +104,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         // User message aligned to the right with dark background and avatar
         <View>
           <View style={styles.userMessageWrapper}>
-            <View style={styles.userBubble}>
+            <View style={[
+              styles.userBubble,
+              message.status === 'queued' && styles.queuedMessage,
+              message.status === 'failed' && styles.failedMessage
+            ]}>
               {renderUserAvatar()}
               <View style={styles.userContentWrapper}>
-                {message.isAudio && message.audioData && message.audioMimeType && message.duration ? (
+                {message.isAudio && message.audioData && message.audioMimeType ? (
                   <VoiceMessagePlayer
                     audioData={message.audioData}
                     audioMimeType={message.audioMimeType}
-                    duration={message.duration}
+                    duration={message.duration || 0}
                     fileName={message.audioFileName}
                   />
                 ) : (
@@ -122,10 +126,18 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
                   )
                 )}
               </View>
+              {/* Status badge for queued/sending messages */}
+              {message.status && ['queued', 'sending'].includes(message.status) && (
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>
+                    {message.status === 'queued' ? '⏱' : '📤'}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
           {/* Copy button for user messages */}
-          {message.text && (
+          {message.text && !message.isAudio && (
             <View style={styles.copyButtonContainerRight}>
               <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
                 {copied ? (
@@ -142,13 +154,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
         <View>
           <View style={styles.assistantMessageWrapper}>
             <View style={styles.assistantBubble}>
-              {message.isAudio && message.audioData && message.audioMimeType && message.duration ? (
-                <VoiceMessagePlayer
-                  audioData={message.audioData}
-                  audioMimeType={message.audioMimeType}
-                  duration={message.duration}
-                  fileName={message.audioFileName}
-                />
+              {message.isAudio && message.audioData && message.audioMimeType ? (
+                <>
+                  <VoiceMessagePlayer
+                    audioData={message.audioData}
+                    audioMimeType={message.audioMimeType}
+                    duration={message.duration || 0}
+                    fileName={message.audioFileName}
+                  />
+                  {/* Show transcription text below audio if present */}
+                  {message.text && message.text.length > 0 && (
+                    <View style={styles.transcriptionContainer}>
+                      {renderText(message.text, false)}
+                    </View>
+                  )}
+                </>
               ) : (
                 message.text && message.text.length > 0 ? (
                   renderText(message.text, false)
@@ -158,7 +178,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               )}
             </View>
           </View>
-          {/* Copy button for assistant messages */}
+          {/* Copy button for assistant messages - show for text-only or audio with transcription */}
           {message.text && (
             <View style={styles.copyButtonContainerRight}>
               <TouchableOpacity onPress={handleCopy} style={styles.copyButton}>
@@ -189,7 +209,7 @@ const styles = StyleSheet.create({
   },
   userBubble: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: 'rgb(15, 16, 13)', // Exact desktop color
     borderRadius: 8,
     paddingHorizontal: 16,
@@ -224,6 +244,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Styrene-B',
     flexShrink: 1,
   },
+  queuedMessage: {
+    opacity: 0.6,
+  },
+  failedMessage: {
+    opacity: 0.5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 0, 0, 0.5)',
+  },
+  statusBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  statusBadgeText: {
+    fontSize: 12,
+  },
   // Assistant message styles - aligned to the LEFT
   assistantMessageWrapper: {
     flexDirection: 'row',
@@ -241,6 +279,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: 'rgba(255, 255, 255, 0.95)', // Exact desktop color
     fontFamily: 'Styrene-B',
+  },
+  transcriptionContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
   },
   // Copy button styles
   copyButtonContainerRight: {

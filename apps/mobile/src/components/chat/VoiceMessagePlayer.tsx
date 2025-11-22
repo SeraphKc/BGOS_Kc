@@ -53,15 +53,26 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
     try {
       const audioPath = await saveAudioFile();
       if (!audioPath) {
-        console.error('Failed to get audio path');
+        console.error('VoicePlayer: Failed to get audio path');
         return;
       }
 
+      console.log('VoicePlayer: Starting playback with path:', audioPath);
+
+      // Ensure any previous listener is removed before starting
+      AudioRecorderPlayer.removePlayBackListener();
+
+      // Stop any existing playback before starting new one
+      await AudioRecorderPlayer.stopPlayer().catch(() => {
+        // Ignore if nothing was playing
+      });
+
       const result = await AudioRecorderPlayer.startPlayer(audioPath, undefined);
-      console.log('Playback started:', result);
+      console.log('VoicePlayer: Playback started successfully:', result);
 
       setIsPlaying(true);
 
+      // Add fresh listener
       AudioRecorderPlayer.addPlayBackListener((e) => {
         setCurrentPosition(Math.floor(e.currentPosition / 1000));
         setAudioDuration(Math.floor(e.duration / 1000));
@@ -72,7 +83,7 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
         }
       });
     } catch (error) {
-      console.error('Failed to start playback:', error);
+      console.error('VoicePlayer: Failed to start playback:', error);
       setIsPlaying(false);
     }
   };
@@ -105,12 +116,9 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
         AudioRecorderPlayer.stopPlayer();
         AudioRecorderPlayer.removePlayBackListener();
       }
-      // Clean up temp file
-      if (audioPathRef.current) {
-        ReactNativeBlobUtil.fs.unlink(audioPathRef.current).catch((err) => {
-          console.error('Failed to delete temp audio file:', err);
-        });
-      }
+      // Note: We intentionally DON'T delete the temp file here
+      // because it needs to persist for replay. The temp file will be
+      // cleaned up when the app closes or on next app launch.
     };
   }, [isPlaying]);
 
@@ -158,10 +166,12 @@ export const VoiceMessagePlayer: React.FC<VoiceMessagePlayerProps> = ({
           ))}
         </View>
 
-        {/* Time display */}
-        <Text style={styles.timeText}>
-          {formatTime(isPlaying ? currentPosition : audioDuration)}
-        </Text>
+        {/* Time display - positioned at bottom right */}
+        <View style={styles.timeContainer}>
+          <Text style={styles.timeText}>
+            {formatTime(isPlaying ? currentPosition : audioDuration)}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -175,6 +185,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 12,
     minWidth: 220,
+    alignSelf: 'flex-start',
   },
   playButton: {
     width: 40,
@@ -193,26 +204,32 @@ const styles = StyleSheet.create({
   },
   waveformContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    position: 'relative',
+    height: 40,
   },
   waveformBars: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 28,
     flex: 1,
-    marginRight: 12,
   },
   waveformBar: {
     width: 2.5,
     marginHorizontal: 1,
     borderRadius: 1.25,
   },
+  timeContainer: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
   timeText: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.95)',
+    fontSize: 11,
     fontFamily: 'Styrene-B',
-    minWidth: 40,
   },
 });

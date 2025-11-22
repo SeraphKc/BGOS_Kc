@@ -27,6 +27,12 @@ const chatHistorySlice = createSlice({
                 state.list[index] = { ...state.list[index], ...action.payload.updates };
             }
         },
+        updateMessageStatus(state, action) {
+            const index = state.list.findIndex(m => m.id === action.payload.id);
+            if (index !== -1) {
+                state.list[index].status = action.payload.status;
+            }
+        },
         removeMessage(state, action) {
             state.list = state.list.filter(m => m.id !== action.payload);
         },
@@ -46,5 +52,5 @@ const chatHistorySlice = createSlice({
         },
     },
 });
-export const { setChatHistory, addMessage, updateMessage, removeMessage, clearChatHistory, setLoading, setError, clearError } = chatHistorySlice.actions;
+export const { setChatHistory, addMessage, updateMessage, updateMessageStatus, removeMessage, clearChatHistory, setLoading, setError, clearError } = chatHistorySlice.actions;
 export default chatHistorySlice.reducer;

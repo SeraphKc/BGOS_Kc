@@ -1,5 +1,7 @@
 export type Sender = 'user' | 'assistant';
 
+export type MessageStatus = 'sending' | 'queued' | 'sent' | 'delivered' | 'failed';
+
 export type FileInfo = {
     fileName: string;
     fileData: string;
@@ -29,4 +31,5 @@ export type ChatHistory = {
     is_multi_response?: boolean;
     files?: FileInfo[];
     isMixedAttachments?:boolean;
+    status?: MessageStatus; // Message delivery status for queuing system
 };

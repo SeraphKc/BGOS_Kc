@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ChatHistory } from '@bgos/shared-types';
+import { ChatHistory, MessageStatus } from '@bgos/shared-types';
 
 export interface ChatHistoryState {
     list: ChatHistory[];
@@ -37,6 +37,12 @@ const chatHistorySlice = createSlice({
                 state.list[index] = { ...state.list[index], ...action.payload.updates };
             }
         },
+        updateMessageStatus(state, action: PayloadAction<{id: string, status: MessageStatus}>) {
+            const index = state.list.findIndex(m => m.id === action.payload.id);
+            if (index !== -1) {
+                state.list[index].status = action.payload.status;
+            }
+        },
         removeMessage(state, action: PayloadAction<string>) {
             state.list = state.list.filter(m => m.id !== action.payload);
         },
@@ -61,6 +67,7 @@ export const {
     setChatHistory,
     addMessage,
     updateMessage,
+    updateMessageStatus,
     removeMessage,
     clearChatHistory,
     setLoading,
