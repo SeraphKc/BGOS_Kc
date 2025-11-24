@@ -4,51 +4,64 @@ import { ELEVENLABS_API_KEY } from '@env';
 
 interface UseVoiceSessionProps {
   agentId: string | undefined;
+  dynamicVariables?: Record<string, string | number | boolean>;
 }
 
 export interface VoiceSessionState {
   status: 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
   isSpeaking: boolean;
   isListening: boolean;
+  isThinking: boolean;
+  mode: 'idle' | 'listening' | 'speaking' | 'thinking';
   error: string | null;
   conversationId: string | null;
+  audioLevel: number;
+  vadScore: number;
 }
 
-export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
+export interface TranscriptMessage {
+  id: string;
+  message: string;
+  source: 'user' | 'agent';
+  timestamp: Date;
+}
+
+export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionProps) => {
   const [sessionState, setSessionState] = useState<VoiceSessionState>({
     status: 'idle',
     isSpeaking: false,
     isListening: false,
+    isThinking: false,
+    mode: 'idle',
     error: null,
     conversationId: null,
+    audioLevel: 0,
+    vadScore: 0,
   });
 
+  const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
   const conversationIdRef = useRef<string | null>(null);
-  const isStartingRef = useRef(false); // Guard against duplicate starts
 
-  // Initialize Eleven Labs conversation hook
+  // Ref to track last mode for debouncing rapid duplicate mode change events
+  const lastModeRef = useRef<string>('idle');
+
+  // Initialize Eleven Labs conversation hook with stable callback references
+  // Callbacks must be wrapped in useCallback with empty deps to prevent re-creation
   const conversation = useConversation({
-    onConnect: useCallback(() => {
-      console.log('✅ Voice session connected');
-      isStartingRef.current = false; // Reset guard
+    onConnect: useCallback(({ conversationId }: { conversationId: string }) => {
+      console.log('✅ Voice session connected:', conversationId);
+
+      // Store conversation ID
+      conversationIdRef.current = conversationId;
+
+      // Use functional setState to avoid external dependencies
       setSessionState((prev) => ({
         ...prev,
         status: 'connected',
         error: null,
+        conversationId,
       }));
-
-      // Get conversation ID using function scope
-      if (conversation) {
-        const convId = conversation.getId();
-        if (convId) {
-          conversationIdRef.current = convId;
-          setSessionState((prev) => ({
-            ...prev,
-            conversationId: convId,
-          }));
-        }
-      }
-    }, [conversation]),
+    }, []),
 
     onDisconnect: useCallback(() => {
       console.log('🔌 Voice session disconnected');
@@ -60,43 +73,80 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
       }));
     }, []),
 
-    onError: useCallback((error: Error) => {
-      console.error('❌ Voice session error:', error);
+    onError: useCallback((message: string, context?: any) => {
+      console.error('❌ Voice session error:', message, context);
       setSessionState((prev) => ({
         ...prev,
         status: 'error',
-        error: error.message || 'Unknown error occurred',
+        error: message || 'Unknown error occurred',
         isSpeaking: false,
         isListening: false,
       }));
     }, []),
 
-    onModeChange: useCallback(
-      ({ mode }: { mode: 'speaking' | 'listening' | 'thinking' | 'idle' }) => {
-        console.log('🎙️ Voice mode changed:', mode);
-        setSessionState((prev) => ({
-          ...prev,
-          isSpeaking: mode === 'speaking',
-          isListening: mode === 'listening',
-        }));
-      },
-      []
-    ),
+    onModeChange: useCallback(({ mode }: { mode: 'speaking' | 'listening' | 'thinking' | 'idle' }) => {
+      // Skip duplicate mode events to prevent excessive re-renders
+      // The SDK fires mode changes very rapidly (multiple per second)
+      if (lastModeRef.current === mode) return;
+      lastModeRef.current = mode;
+
+      console.log('🎙️ Voice mode changed:', mode);
+      setSessionState((prev) => ({
+        ...prev,
+        mode,
+        isSpeaking: mode === 'speaking',
+        isListening: mode === 'listening',
+        isThinking: mode === 'thinking',
+      }));
+    }, []),
 
     onMessage: useCallback((message: any) => {
       console.log('💬 Voice message:', message);
-      // Can be used for transcription display in future
+
+      // Add message to transcript using functional setState
+      const newMessage: TranscriptMessage = {
+        id: `${Date.now()}-${message.source}`,
+        message: message.message,
+        source: message.source === 'user' ? 'user' : 'agent',
+        timestamp: new Date(),
+      };
+
+      setTranscript((prev) => [...prev, newMessage]);
+    }, []),
+
+    onAudio: useCallback((audioChunk: string) => {
+      // Audio chunk received (base64 encoded)
+      // Could be used for custom audio processing or visualization
+      console.log('🔊 Audio chunk received:', audioChunk.substring(0, 50));
+    }, []),
+
+    onVadScore: useCallback(({ vadScore }: { vadScore: number }) => {
+      // Voice Activity Detection score (0-1)
+      setSessionState((prev) => ({
+        ...prev,
+        vadScore,
+        audioLevel: vadScore, // Use VAD score as audio level indicator
+      }));
+    }, []),
+
+    onInterruption: useCallback(() => {
+      console.log('⚡ User interrupted agent');
+    }, []),
+
+    onAgentChatResponsePart: useCallback((props: any) => {
+      // Streaming agent response
+      console.log('💬 Agent response part:', props);
     }, []),
   });
 
-  // Start voice session
-  const startSession = useCallback(async () => {
-    // Guard against duplicate starts
-    if (isStartingRef.current) {
-      console.log('⚠️ Session already starting, ignoring duplicate request');
-      return false;
-    }
+  // Store conversation in ref for stable access across renders
+  const conversationRef = useRef(conversation);
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
 
+  // Start voice session - no conversation dependency, uses ref for access
+  const startSession = useCallback(async () => {
     if (!agentId) {
       console.error('❌ Cannot start session: No agent ID provided');
       setSessionState((prev) => ({
@@ -108,7 +158,6 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
     }
 
     try {
-      isStartingRef.current = true; // Set guard
       console.log('🚀 Starting voice session with agent:', agentId);
       setSessionState((prev) => ({
         ...prev,
@@ -142,15 +191,16 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
 
       console.log('🎫 Got conversation token, starting session...');
 
-      // Start the conversation with the token
-      await conversation.startSession({
+      // Start the conversation with the token and optional dynamic variables
+      // Access conversation via ref for stability
+      await conversationRef.current.startSession({
         conversationToken,
+        ...(dynamicVariables && { dynamicVariables }),
       });
 
       console.log('✅ Voice session started successfully');
       return true;
     } catch (error) {
-      isStartingRef.current = false; // Reset guard on error
       console.error('❌ Failed to start voice session:', error);
       setSessionState((prev) => ({
         ...prev,
@@ -159,21 +209,23 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
       }));
       return false;
     }
-  }, [agentId, conversation]);
+  }, [agentId, dynamicVariables]);
 
-  // End voice session
+  // End voice session - no conversation dependency, uses ref for access
   const endSession = useCallback(async () => {
     try {
       console.log('🛑 Ending voice session...');
-      await conversation.endSession();
+      await conversationRef.current.endSession();
 
-      setSessionState({
+      setSessionState((prev) => ({
+        ...prev,
         status: 'disconnected',
         isSpeaking: false,
         isListening: false,
+        isThinking: false,
+        mode: 'idle',
         error: null,
-        conversationId: conversationIdRef.current,
-      });
+      }));
 
       console.log('✅ Voice session ended');
       return true;
@@ -181,39 +233,43 @@ export const useVoiceSession = ({ agentId }: UseVoiceSessionProps) => {
       console.error('❌ Error ending voice session:', error);
       return false;
     }
-  }, [conversation]);
+  }, []);
 
-  // Track session status and conversation in ref for cleanup
-  const sessionStatusRef = useRef(sessionState.status);
-  const conversationRef = useRef(conversation);
-
+  // Track status in ref for stable access
+  const statusRef = useRef(sessionState.status);
   useEffect(() => {
-    sessionStatusRef.current = sessionState.status;
-    conversationRef.current = conversation;
-  }, [sessionState.status, conversation]);
+    statusRef.current = sessionState.status;
+  }, [sessionState.status]);
 
-  // Cleanup effect: End session on unmount ONLY
-  useEffect(() => {
-    return () => {
-      // Only cleanup if we have an active session
-      const currentStatus = sessionStatusRef.current;
-      const conv = conversationRef.current;
+  // NOTE: Automatic cleanup on unmount has been removed to prevent premature disconnections
+  // during hot reloads, fast refresh, or component re-renders.
+  // Session cleanup should be handled explicitly by calling endSession() or via navigation listeners.
 
-      if ((currentStatus === 'connected' || currentStatus === 'connecting') && conv) {
-        console.log('🧹 useVoiceSession unmounting - cleaning up session');
-        conv.endSession().catch((err) => {
-          console.error('Error cleaning up session on unmount:', err);
-        });
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only run on mount/unmount
+  // Send user activity to prevent agent interruption
+  const sendUserActivity = useCallback(() => {
+    const currentStatus = statusRef.current;
+    if (currentStatus === 'connected') {
+      conversationRef.current.sendUserActivity();
+      console.log('👆 User activity signal sent');
+    }
+  }, []);
+
+  // Send contextual update (silent context, no agent response)
+  const sendContextualUpdate = useCallback((context: string) => {
+    const currentStatus = statusRef.current;
+    if (currentStatus === 'connected') {
+      conversationRef.current.sendContextualUpdate(context);
+      console.log('📝 Contextual update sent:', context);
+    }
+  }, []);
 
   return {
     sessionState,
+    transcript,
     conversationId: conversationIdRef.current,
     startSession,
     endSession,
-    conversation, // Expose raw conversation for advanced usage if needed
+    sendUserActivity,
+    sendContextualUpdate,
   };
 };

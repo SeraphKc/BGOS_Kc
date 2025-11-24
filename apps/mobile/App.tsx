@@ -6,9 +6,24 @@ import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import { createStore } from '@bgos/shared-state';
 import AppNavigator from './src/navigation/AppNavigator';
 import { theme } from './src/theme/theme';
-import { VoiceAgentProvider } from './src/contexts/VoiceAgentContext';
+import { VoiceAgentProvider, useVoiceAgentModal } from './src/contexts/VoiceAgentContext';
+import { VoiceAgentModal } from './src/components/voice/VoiceAgentModal';
 
 const store = createStore();
+
+// Voice modal component that uses the context
+function VoiceModalRenderer() {
+  const { isModalVisible, modalAgentId, modalAgentName, hideVoiceModal } = useVoiceAgentModal();
+
+  return (
+    <VoiceAgentModal
+      visible={isModalVisible}
+      onClose={hideVoiceModal}
+      agentId={modalAgentId}
+      agentName={modalAgentName}
+    />
+  );
+}
 
 // Custom toast configuration
 const toastConfig = {
@@ -41,6 +56,7 @@ function App(): React.JSX.Element {
         <PaperProvider theme={theme}>
           <VoiceAgentProvider>
             <AppNavigator />
+            <VoiceModalRenderer />
             <Toast config={toastConfig} />
           </VoiceAgentProvider>
         </PaperProvider>

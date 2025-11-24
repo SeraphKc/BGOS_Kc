@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -6,8 +6,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useVoiceSession } from '../../hooks/useVoiceSession';
+import { TranscriptionOverlay } from './TranscriptionOverlay';
+import { VoiceVisualizer } from './VoiceVisualizer';
 
 interface VoiceAgentModalProps {
   visible: boolean;
@@ -22,7 +25,17 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
   agentId,
   agentName = 'Voice Assistant',
 }) => {
-  const { sessionState, startSession, endSession } = useVoiceSession({ agentId });
+  const { sessionState, transcript, startSession, endSession } = useVoiceSession({ agentId });
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [liveUserText, setLiveUserText] = useState('');
+  const [liveAgentText, setLiveAgentText] = useState('');
+
+  // Auto-scroll transcript to bottom when new messages arrive
+  useEffect(() => {
+    if (transcript.length > 0) {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [transcript]);
 
   // Auto-start session when modal opens
   useEffect(() => {
@@ -48,6 +61,7 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
         return 'Connecting...';
       case 'connected':
         if (sessionState.isSpeaking) return 'Agent Speaking...';
+        if (sessionState.isThinking) return 'Thinking...';
         if (sessionState.isListening) return 'Listening...';
         return 'Connected';
       case 'disconnected':
@@ -63,9 +77,10 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
   const getStatusColor = () => {
     switch (sessionState.status) {
       case 'connected':
-        if (sessionState.isSpeaking) return '#10b981'; // green
-        if (sessionState.isListening) return '#3b82f6'; // blue
-        return '#10b981';
+        if (sessionState.isSpeaking) return '#FFD700'; // gold/yellow for speaking
+        if (sessionState.isThinking) return '#8b5cf6'; // purple for thinking
+        if (sessionState.isListening) return '#3b82f6'; // blue for listening
+        return '#10b981'; // green for idle/connected
       case 'connecting':
         return '#f59e0b'; // orange
       case 'error':
@@ -90,41 +105,93 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
 
         {/* Main Content */}
         <View style={styles.content}>
-          {/* Status Indicator */}
-          <View style={styles.statusContainer}>
-            {sessionState.status === 'connecting' && (
+          {/* Voice Visualizer */}
+          <View style={styles.visualizerContainer}>
+            {sessionState.status === 'connecting' ? (
               <ActivityIndicator size="large" color="#3b82f6" />
+            ) : (
+              <VoiceVisualizer
+                isActive={sessionState.status === 'connected'}
+                mode={sessionState.mode}
+                audioLevel={sessionState.audioLevel}
+                vadScore={sessionState.vadScore}
+              />
             )}
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: getStatusColor() },
-              ]}
-            />
-            <Text style={styles.statusText}>{getStatusText()}</Text>
           </View>
 
-          {/* Debug Info */}
-          <View style={styles.debugContainer}>
-            <Text style={styles.debugText}>Status: {sessionState.status}</Text>
-            <Text style={styles.debugText}>
-              Is Speaking: {sessionState.isSpeaking ? 'Yes' : 'No'}
+          {/* Status Text */}
+          <View style={styles.statusContainer}>
+            <Text style={[styles.statusText, { color: getStatusColor() }]}>
+              {getStatusText()}
             </Text>
-            <Text style={styles.debugText}>
-              Is Listening: {sessionState.isListening ? 'Yes' : 'No'}
-            </Text>
-            {sessionState.conversationId && (
-              <Text style={styles.debugText}>
-                Conversation ID: {sessionState.conversationId.substring(0, 12)}...
-              </Text>
-            )}
-            {sessionState.error && (
-              <Text style={[styles.debugText, styles.errorText]}>
-                Error: {sessionState.error}
-              </Text>
-            )}
           </View>
+
+          {/* Transcript View */}
+          {transcript.length > 0 && (
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.transcriptContainer}
+              contentContainerStyle={styles.transcriptContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {transcript.map((item) => (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.messageContainer,
+                    item.source === 'agent'
+                      ? styles.agentMessageContainer
+                      : styles.userMessageContainer,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.messageText,
+                      item.source === 'agent'
+                        ? styles.agentMessageText
+                        : styles.userMessageText,
+                    ]}
+                  >
+                    {item.message}
+                  </Text>
+                  <Text style={styles.messageTime}>
+                    {item.timestamp.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Debug Info - Only show when no transcript */}
+          {transcript.length === 0 && (
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugText}>Mode: {sessionState.mode}</Text>
+              <Text style={styles.debugText}>
+                Audio Level: {Math.round(sessionState.audioLevel * 100)}%
+              </Text>
+              {sessionState.conversationId && (
+                <Text style={styles.debugText}>
+                  Conversation ID: {sessionState.conversationId.substring(0, 12)}...
+                </Text>
+              )}
+              {sessionState.error && (
+                <Text style={[styles.debugText, styles.errorText]}>
+                  Error: {sessionState.error}
+                </Text>
+              )}
+            </View>
+          )}
         </View>
+
+        {/* Live Transcription Overlay */}
+        <TranscriptionOverlay
+          userText={liveUserText}
+          agentText={liveAgentText}
+          visible={sessionState.status === 'connected'}
+        />
 
         {/* Footer with End Call Button */}
         <View style={styles.footer}>
@@ -165,21 +232,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  visualizerContainer: {
+    height: 200,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   statusContainer: {
     alignItems: 'center',
-    marginBottom: 40,
-  },
-  statusDot: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginVertical: 20,
+    marginBottom: 20,
   },
   statusText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  transcriptContainer: {
+    flex: 1,
+    width: '100%',
+    marginTop: 20,
+  },
+  transcriptContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  messageContainer: {
+    marginBottom: 16,
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 12,
+  },
+  userMessageContainer: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#374151',
+  },
+  agentMessageContainer: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 215, 0, 0.15)', // Subtle gold tint
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 22,
+    marginBottom: 4,
+  },
+  userMessageText: {
     color: '#ffffff',
-    marginTop: 10,
+  },
+  agentMessageText: {
+    color: '#FFD700', // Gold/yellow
+  },
+  messageTime: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 4,
   },
   debugContainer: {
     backgroundColor: '#1f2937',

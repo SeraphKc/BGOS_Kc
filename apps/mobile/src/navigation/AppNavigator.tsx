@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Dimensions } from 'react-native';
@@ -10,7 +10,26 @@ import ChatScreen from '../screens/chat/ChatScreen';
 import AgentSelectionScreen from '../screens/chat/AgentSelectionScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import { VoiceAgentScreen } from '../screens/voice/VoiceAgentScreen';
+import { VoiceErrorBoundary } from '../components/voice/VoiceErrorBoundary';
 import { Sidebar } from '../components/sidebar/Sidebar';
+
+// Wrapped VoiceAgentScreen with error boundary
+function VoiceAgentWithErrorBoundary() {
+  const navigation = useNavigation();
+
+  const handleReset = () => {
+    // Navigate back on error reset
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    }
+  };
+
+  return (
+    <VoiceErrorBoundary onReset={handleReset}>
+      <VoiceAgentScreen />
+    </VoiceErrorBoundary>
+  );
+}
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -76,12 +95,12 @@ export default function AppNavigator() {
         />
         <Stack.Screen
           name="VoiceAgent"
-          component={VoiceAgentScreen}
+          component={VoiceAgentScreen}  // Temporarily removed error boundary to test
           options={{
             headerShown: false,
-            presentation: 'fullScreenModal',
+            presentation: 'containedModal', // Testing containedModal - different native implementation
             animation: 'slide_from_bottom',
-            gestureEnabled: true,
+            gestureEnabled: false, // Disable gestures to prevent accidental dismissal
           }}
         />
       </Stack.Navigator>

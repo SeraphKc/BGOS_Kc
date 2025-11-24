@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Text, Alert, Platform } from 'react-native';
 import { useSelector } from 'react-redux';
-import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '@bgos/shared-logic';
 import { FileInfo } from '@bgos/shared-types';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -13,6 +12,7 @@ import { VoiceSquareIcon } from '../icons/VoiceSquareIcon';
 import { SendIcon } from '../icons/SendIcon';
 import { useVoiceRecording, VoiceRecordingData } from '../../hooks/useVoiceRecording';
 import { VoiceRecordingInterface } from './VoiceRecordingInterface';
+import { useVoiceAgentModal } from '../../contexts/VoiceAgentContext';
 import type { RootState } from '@bgos/shared-state';
 
 interface MessageInputProps {
@@ -35,7 +35,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const [attachedFiles, setAttachedFiles] = useState<FileInfo[]>([]);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const inputRef = useRef<TextInput>(null);
-  const navigation = useNavigation();
+  const { showVoiceModal } = useVoiceAgentModal();
 
   // Get selected assistant from Redux
   const selectedAssistant = useSelector((state: RootState) =>
@@ -231,7 +231,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     try {
       if (disabled) return;
 
-      console.log('🎙️ MessageInput - Navigating to voice agent screen');
+      console.log('🎙️ MessageInput - Opening voice agent modal');
 
       // Check if agent is selected
       if (!selectedAssistant?.s2sToken) {
@@ -243,9 +243,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         return;
       }
 
-      // Navigate to VoiceAgentScreen
-      console.log('✅ Navigating to voice agent with agent:', selectedAssistant.name);
-      navigation.navigate('VoiceAgent' as never);
+      // Show voice modal (bypasses react-native-screens)
+      console.log('✅ Opening voice modal for agent:', selectedAssistant.name);
+      showVoiceModal(selectedAssistant.s2sToken, selectedAssistant.name);
     } catch (error) {
       console.error('❌ Error in handleVoiceAgent:', error);
       Alert.alert('Error', 'Failed to open voice agent');
