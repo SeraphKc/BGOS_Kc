@@ -99,7 +99,7 @@ const LoadingScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <RotatingLogo size={50} />
+      <RotatingLogo size={300} />
       <Text style={styles.text}>BGOS</Text>
       {isLoadingData && (
         <Text style={styles.loadingText}>Loading assistants...</Text>
