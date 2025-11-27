@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useCallback, useRef, useState } from 'react';
+import React, { createContext, useContext, ReactNode, useCallback, useRef, useState, useEffect } from 'react';
 import type { TranscriptMessage } from '../services/elevenLabsService';
 
 export interface TranscriptReadyPayload {
@@ -29,6 +29,9 @@ export const VoiceAgentProvider: React.FC<{ children: ReactNode }> = ({ children
   const [modalAgentId, setModalAgentId] = useState<string | undefined>(undefined);
   const [modalAgentName, setModalAgentName] = useState<string | undefined>(undefined);
 
+  // Ref to track and cleanup hide timeout
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const setTranscriptReadyHandler = useCallback((handler: (payload: TranscriptReadyPayload) => void) => {
     console.log('VoiceAgentContext - Setting transcript handler');
     transcriptReadyHandlerRef.current = handler;
@@ -50,11 +53,27 @@ export const VoiceAgentProvider: React.FC<{ children: ReactNode }> = ({ children
   const hideVoiceModal = useCallback(() => {
     console.log('🎤 VoiceAgentContext - Hiding voice modal');
     setIsModalVisible(false);
+
+    // Clear any existing timeout to prevent memory leaks
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+    }
+
     // Clear agent info after a delay to allow modal close animation
-    setTimeout(() => {
+    hideTimeoutRef.current = setTimeout(() => {
       setModalAgentId(undefined);
       setModalAgentName(undefined);
+      hideTimeoutRef.current = null;
     }, 300);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+      }
+    };
   }, []);
 
   return (

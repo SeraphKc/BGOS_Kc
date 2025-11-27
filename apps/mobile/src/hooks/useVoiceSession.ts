@@ -12,6 +12,7 @@ export interface VoiceSessionState {
   isSpeaking: boolean;
   isListening: boolean;
   isThinking: boolean;
+  isMuted: boolean;
   mode: 'idle' | 'listening' | 'speaking' | 'thinking';
   error: string | null;
   conversationId: string | null;
@@ -32,6 +33,7 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
     isSpeaking: false,
     isListening: false,
     isThinking: false,
+    isMuted: false,
     mode: 'idle',
     error: null,
     conversationId: null,
@@ -223,6 +225,7 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
         isSpeaking: false,
         isListening: false,
         isThinking: false,
+        isMuted: false,
         mode: 'idle',
         error: null,
       }));
@@ -233,6 +236,31 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
       console.error('❌ Error ending voice session:', error);
       return false;
     }
+  }, []);
+
+  // Toggle mute state
+  const toggleMute = useCallback(() => {
+    const currentStatus = statusRef.current;
+    if (currentStatus !== 'connected') return;
+
+    setSessionState((prev) => {
+      const newMutedState = !prev.isMuted;
+      console.log(`🎤 Microphone ${newMutedState ? 'muted' : 'unmuted'}`);
+
+      // Use ElevenLabs SDK mute method if available
+      try {
+        if (conversationRef.current && typeof conversationRef.current.setMuted === 'function') {
+          conversationRef.current.setMuted(newMutedState);
+        }
+      } catch (error) {
+        console.error('❌ Error setting mute state:', error);
+      }
+
+      return {
+        ...prev,
+        isMuted: newMutedState,
+      };
+    });
   }, []);
 
   // Track status in ref for stable access
@@ -269,6 +297,7 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
     conversationId: conversationIdRef.current,
     startSession,
     endSession,
+    toggleMute,
     sendUserActivity,
     sendContextualUpdate,
   };

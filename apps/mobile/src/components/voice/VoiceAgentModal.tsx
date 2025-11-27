@@ -7,16 +7,22 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  Image,
 } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useVoiceSession } from '../../hooks/useVoiceSession';
 import { TranscriptionOverlay } from './TranscriptionOverlay';
-import { VoiceVisualizer } from './VoiceVisualizer';
+import { VoiceSphereWebView } from './VoiceSphereWebView';
+import { fetchConversationTranscript, TranscriptMessage } from '../../services/elevenLabsService';
+import type { TranscriptReadyPayload } from '../../contexts/VoiceAgentContext';
+import { audioInitState } from '../../../App';
 
 interface VoiceAgentModalProps {
   visible: boolean;
   onClose: () => void;
   agentId: string | undefined;
   agentName?: string;
+  onTranscriptReady?: (payload: TranscriptReadyPayload) => void;
 }
 
 export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
@@ -24,11 +30,26 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
   onClose,
   agentId,
   agentName = 'Voice Assistant',
+  onTranscriptReady,
 }) => {
-  const { sessionState, transcript, startSession, endSession } = useVoiceSession({ agentId });
+  const { sessionState, transcript, conversationId, startSession, endSession, toggleMute } = useVoiceSession({ agentId });
   const scrollViewRef = useRef<ScrollView>(null);
   const [liveUserText, setLiveUserText] = useState('');
   const [liveAgentText, setLiveAgentText] = useState('');
+  const [isEndingCall, setIsEndingCall] = useState(false);
+  const [waitingForInit, setWaitingForInit] = useState(false);
+  const [isTranscriptExpanded, setIsTranscriptExpanded] = useState(false);
+
+  // Store conversationId in ref to access in handleEndCall after session ends
+  const conversationIdRef = useRef<string | null>(null);
+
+  // Keep conversationId ref updated
+  useEffect(() => {
+    if (conversationId) {
+      conversationIdRef.current = conversationId;
+      console.log('📝 Stored conversationId:', conversationId);
+    }
+  }, [conversationId]);
 
   // Auto-scroll transcript to bottom when new messages arrive
   useEffect(() => {
@@ -37,23 +58,100 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
     }
   }, [transcript]);
 
-  // Auto-start session when modal opens
+  // Auto-start session when modal opens - with audio initialization check
   useEffect(() => {
     if (visible && sessionState.status === 'idle') {
-      console.log('🎬 Modal opened, starting voice session...');
-      startSession();
+      const tryStartSession = async () => {
+        // Wait for audio initialization if not ready
+        if (!audioInitState.isInitialized) {
+          setWaitingForInit(true);
+          console.log('⏳ Waiting for audio initialization...');
+
+          // Poll until initialized (max 5 seconds)
+          let attempts = 0;
+          while (!audioInitState.isInitialized && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+          }
+          setWaitingForInit(false);
+
+          if (!audioInitState.isInitialized) {
+            console.error('❌ Audio initialization timeout');
+            return;
+          }
+        }
+
+        console.log('🎬 Modal opened, starting voice session...');
+        try {
+          await startSession();
+        } catch (error) {
+          console.error('❌ Failed to start voice session:', error);
+        }
+      };
+
+      tryStartSession();
     }
   }, [visible, sessionState.status, startSession]);
 
-  // Handle end call
+  // Handle end call - fetch transcript and notify parent
   const handleEndCall = async () => {
+    if (isEndingCall) return; // Prevent double-tap
+
     console.log('📞 End call button pressed');
-    await endSession();
+    setIsEndingCall(true);
+
+    // Store conversation ID before ending session
+    const storedConversationId = conversationIdRef.current;
+    console.log('📝 Conversation ID for transcript:', storedConversationId);
+
+    // End the session first - wrapped in try-catch to prevent crashes
+    try {
+      await endSession();
+    } catch (error) {
+      console.error('❌ Error ending session:', error);
+      // Continue anyway - session might already be ended or in bad state
+    }
+
+    // If we have a conversation ID, fetch the transcript
+    if (storedConversationId && onTranscriptReady) {
+      try {
+        console.log('⏳ Waiting for transcript to be ready...');
+        // Wait 1 second for ElevenLabs to process the transcript
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        console.log('📥 Fetching transcript from ElevenLabs...');
+        const transcriptData = await fetchConversationTranscript(storedConversationId);
+
+        console.log('✅ Transcript fetched:', transcriptData?.length, 'messages');
+
+        // Call the callback with the transcript
+        onTranscriptReady({
+          conversationId: storedConversationId,
+          transcript: transcriptData,
+        });
+      } catch (error) {
+        console.error('❌ Failed to fetch transcript:', error);
+        // Still call callback with just the conversationId so chat knows call ended
+        onTranscriptReady({
+          conversationId: storedConversationId,
+          transcript: undefined,
+        });
+      }
+    }
+
+    // Reset state and close modal
+    conversationIdRef.current = null;
+    setIsEndingCall(false);
     onClose();
   };
 
   // Get status display text
   const getStatusText = () => {
+    // Show waiting for audio init status
+    if (waitingForInit) {
+      return 'Waiting for audio...';
+    }
+
     switch (sessionState.status) {
       case 'idle':
         return 'Initializing...';
@@ -103,19 +201,21 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
           <Text style={styles.agentName}>{agentName}</Text>
         </View>
 
-        {/* Main Content */}
+        {/* 3D Sphere Background */}
+        <View style={styles.sphereBackground}>
+          <VoiceSphereWebView
+            isActive={sessionState.status === 'connected'}
+            mode={sessionState.mode}
+            audioLevel={sessionState.audioLevel}
+          />
+        </View>
+
+        {/* Main Content - Overlay */}
         <View style={styles.content}>
-          {/* Voice Visualizer */}
+          {/* Status indicator when connecting */}
           <View style={styles.visualizerContainer}>
-            {sessionState.status === 'connecting' ? (
-              <ActivityIndicator size="large" color="#3b82f6" />
-            ) : (
-              <VoiceVisualizer
-                isActive={sessionState.status === 'connected'}
-                mode={sessionState.mode}
-                audioLevel={sessionState.audioLevel}
-                vadScore={sessionState.vadScore}
-              />
+            {sessionState.status === 'connecting' && (
+              <ActivityIndicator size="large" color="#FFD700" />
             )}
           </View>
 
@@ -126,43 +226,64 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
             </Text>
           </View>
 
-          {/* Transcript View */}
+          {/* Collapsible Transcript View */}
           {transcript.length > 0 && (
-            <ScrollView
-              ref={scrollViewRef}
-              style={styles.transcriptContainer}
-              contentContainerStyle={styles.transcriptContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {transcript.map((item) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.messageContainer,
-                    item.source === 'agent'
-                      ? styles.agentMessageContainer
-                      : styles.userMessageContainer,
-                  ]}
+            <View style={styles.transcriptWrapper}>
+              {/* Toggle Button */}
+              <TouchableOpacity
+                onPress={() => setIsTranscriptExpanded(!isTranscriptExpanded)}
+                style={styles.transcriptToggle}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.transcriptToggleText}>
+                  {isTranscriptExpanded ? 'Hide Transcript' : 'Show Transcript'}
+                </Text>
+                <Icon
+                  name={isTranscriptExpanded ? 'chevron-down' : 'chevron-up'}
+                  size={20}
+                  color="#FFD700"
+                />
+              </TouchableOpacity>
+
+              {/* Expandable Content */}
+              {isTranscriptExpanded && (
+                <ScrollView
+                  ref={scrollViewRef}
+                  style={styles.transcriptContainer}
+                  contentContainerStyle={styles.transcriptContent}
+                  showsVerticalScrollIndicator={false}
                 >
-                  <Text
-                    style={[
-                      styles.messageText,
-                      item.source === 'agent'
-                        ? styles.agentMessageText
-                        : styles.userMessageText,
-                    ]}
-                  >
-                    {item.message}
-                  </Text>
-                  <Text style={styles.messageTime}>
-                    {item.timestamp.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
+                  {transcript.map((item) => (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.messageContainer,
+                        item.source === 'agent'
+                          ? styles.agentMessageContainer
+                          : styles.userMessageContainer,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.messageText,
+                          item.source === 'agent'
+                            ? styles.agentMessageText
+                            : styles.userMessageText,
+                        ]}
+                      >
+                        {item.message}
+                      </Text>
+                      <Text style={styles.messageTime}>
+                        {item.timestamp.toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
           )}
 
           {/* Debug Info - Only show when no transcript */}
@@ -193,15 +314,44 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
           visible={sessionState.status === 'connected'}
         />
 
-        {/* Footer with End Call Button */}
+        {/* Footer with Control Buttons */}
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.endCallButton}
-            onPress={handleEndCall}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.endCallText}>End Call</Text>
-          </TouchableOpacity>
+          <View style={styles.buttonRow}>
+            {/* Mute Button */}
+            <TouchableOpacity
+              onPress={toggleMute}
+              style={[styles.controlButton, sessionState.isMuted && styles.controlButtonMuted]}
+              activeOpacity={0.7}
+              disabled={sessionState.status !== 'connected'}
+            >
+              <Image
+                source={require('../../assets/s2s-voice-button.png')}
+                style={[styles.buttonIcon, sessionState.isMuted && styles.mutedIcon]}
+              />
+            </TouchableOpacity>
+
+            {/* End Call Button */}
+            <TouchableOpacity
+              onPress={handleEndCall}
+              style={styles.controlButton}
+              activeOpacity={0.7}
+              disabled={isEndingCall}
+            >
+              {isEndingCall ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Image
+                  source={require('../../assets/s2s-cancel-button.png')}
+                  style={styles.buttonIcon}
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Mute Status Text */}
+          {sessionState.isMuted && (
+            <Text style={styles.muteStatusText}>Microphone Muted</Text>
+          )}
         </View>
       </View>
     </Modal>
@@ -211,115 +361,166 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: 'rgb(38, 38, 36)',
+  },
+  sphereBackground: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+  },
+  content: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+    justifyContent: 'space-between',
+  },
+  visualizerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgb(38, 38, 36)',
+  },
+  loadingText: {
+    color: '#FFD700',
+    fontSize: 18,
+    marginTop: 16,
+    fontWeight: '600',
   },
   header: {
     paddingTop: 60,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+    paddingBottom: 16,
+    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    zIndex: 10,
   },
   agentName: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#ffffff',
     textAlign: 'center',
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  visualizerContainer: {
-    height: 200,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   statusContainer: {
     alignItems: 'center',
-    marginBottom: 20,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.6)',
   },
   statusText: {
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  spacer: {
+    flex: 1,
   },
   transcriptContainer: {
-    flex: 1,
-    width: '100%',
-    marginTop: 20,
+    maxHeight: 200,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: 'rgba(17, 24, 39, 0.7)',
+    borderRadius: 12,
   },
   transcriptContent: {
     paddingHorizontal: 16,
-    paddingBottom: 20,
+    paddingVertical: 12,
   },
   messageContainer: {
-    marginBottom: 16,
-    maxWidth: '80%',
-    padding: 12,
+    marginBottom: 12,
+    maxWidth: '85%',
+    padding: 10,
     borderRadius: 12,
   },
   userMessageContainer: {
     alignSelf: 'flex-end',
-    backgroundColor: '#374151',
+    backgroundColor: 'rgba(55, 65, 81, 0.9)',
   },
   agentMessageContainer: {
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255, 215, 0, 0.15)', // Subtle gold tint
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.4)',
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 22,
-    marginBottom: 4,
+    fontSize: 15,
+    lineHeight: 20,
+    marginBottom: 2,
   },
   userMessageText: {
     color: '#ffffff',
   },
   agentMessageText: {
-    color: '#FFD700', // Gold/yellow
+    color: '#FFD700',
   },
   messageTime: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#9ca3af',
-    marginTop: 4,
-  },
-  debugContainer: {
-    backgroundColor: '#1f2937',
-    padding: 20,
-    borderRadius: 10,
-    width: '100%',
-    maxWidth: 400,
-  },
-  debugText: {
-    fontSize: 14,
-    color: '#9ca3af',
-    marginBottom: 8,
-    fontFamily: 'monospace',
-  },
-  errorText: {
-    color: '#ef4444',
+    marginTop: 2,
   },
   footer: {
     padding: 20,
     paddingBottom: 40,
+    alignItems: 'center',
+    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    zIndex: 10,
   },
-  endCallButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 50,
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 32,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  endCallText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  controlButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  controlButtonMuted: {
+    opacity: 0.6,
+  },
+  buttonIcon: {
+    width: 64,
+    height: 64,
+    resizeMode: 'contain',
+  },
+  mutedIcon: {
+    opacity: 0.5,
+  },
+  muteStatusText: {
+    color: '#ef4444',
+    fontSize: 14,
+    marginTop: 12,
+    fontWeight: '500',
+  },
+  transcriptWrapper: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  transcriptToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    backgroundColor: 'rgba(38, 38, 36, 0.95)',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  transcriptToggleText: {
+    color: '#FFD700',
+    fontSize: 14,
+    marginRight: 8,
+    fontWeight: '500',
   },
 });

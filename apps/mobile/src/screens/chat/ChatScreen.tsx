@@ -255,18 +255,22 @@ export default function ChatScreen({ route, navigation }: any) {
         resolvedTranscript = await fetchConversationTranscript(conversationId);
       }
 
-      // Add transcript messages to chat history
-      resolvedTranscript.forEach((msg) => {
-        const tempMessage = {
-          id: `transcript-${Date.now()}-${Math.random()}`,
-          chatId,
-          sender: msg.role === 'user' ? ('user' as const) : ('assistant' as const),
-          text: msg.message,
-          sentDate: msg.timestamp || new Date().toISOString(),
-        };
+      // Add transcript messages to chat history - with null check to prevent crashes
+      if (resolvedTranscript && Array.isArray(resolvedTranscript) && resolvedTranscript.length > 0) {
+        resolvedTranscript.forEach((msg) => {
+          const tempMessage = {
+            id: `transcript-${Date.now()}-${Math.random()}`,
+            chatId,
+            sender: msg.role === 'user' ? ('user' as const) : ('assistant' as const),
+            text: msg.message,
+            sentDate: msg.timestamp || new Date().toISOString(),
+          };
 
-        dispatch(ChatHistoryActions.addMessage(tempMessage));
-      });
+          dispatch(ChatHistoryActions.addMessage(tempMessage));
+        });
+      } else {
+        console.warn('⚠️ No transcript data available to add to chat');
+      }
 
       setFetchingTranscript(false);
     } catch (error: any) {
