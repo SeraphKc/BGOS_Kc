@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { TextInput, Button, Text, ActivityIndicator } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
-import { UserActions } from '@bgos/shared-state';
+import { UserActions, AssistantActions, ChatActions } from '@bgos/shared-state';
+import { fetchAssistantsWithChats } from '@bgos/shared-services';
 import { COLORS } from '@bgos/shared-logic';
 import AuthService from '../../services/AuthService';
 import Toast from 'react-native-toast-message';
@@ -52,13 +53,39 @@ export default function LoginScreen({ navigation }: any) {
           token: accessToken,
         }));
 
+        // Load assistants and chats data
+        try {
+          dispatch(AssistantActions.setLoading(true));
+          dispatch(ChatActions.setLoading(true));
+
+          const data = await fetchAssistantsWithChats(userData.id, accessToken);
+
+          dispatch(AssistantActions.setAssistants(data.assistants));
+          dispatch(ChatActions.setChats(data.chats));
+        } catch (dataError) {
+          console.error('Failed to load initial data:', dataError);
+          // Continue anyway - data will load on next screen
+        } finally {
+          dispatch(AssistantActions.setLoading(false));
+          dispatch(ChatActions.setLoading(false));
+        }
+
         Toast.show({
           type: 'success',
           text1: 'Welcome!',
           text2: `Logged in as ${userData.name}`,
         });
 
-        navigation.replace('Chat', { chatId: 'new' });
+        // Navigate to Main drawer with Chat screen
+        navigation.reset({
+          index: 0,
+          routes: [{
+            name: 'Main',
+            state: {
+              routes: [{ name: 'Chat', params: { chatId: 'new' } }],
+            }
+          }],
+        });
       } else {
         throw new Error('Invalid credentials');
       }
