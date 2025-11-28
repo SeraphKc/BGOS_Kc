@@ -45,12 +45,27 @@ const preInitializeAudio = async () => {
           buttonPositive: 'OK',
         }
       );
-      console.log('🎙️ Microphone permission:', granted);
+      console.log('🎙️ Microphone permission result:', granted);
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('✅ Microphone permission GRANTED - voice input should work');
+      } else if (granted === PermissionsAndroid.RESULTS.DENIED) {
+        console.log('⚠️ Microphone permission DENIED - voice input will NOT work');
+        audioInitState.error = 'Microphone permission denied';
+      } else if (granted === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+        console.log('❌ Microphone permission NEVER_ASK_AGAIN - user must enable in settings');
+        audioInitState.error = 'Microphone permission blocked - enable in app settings';
+      }
     }
 
-    audioInitState.isInitialized = true;
-    audioInitState.error = null;
-    console.log('✅ Audio subsystem pre-initialized');
+    // Only mark as initialized if there's no error from permission check
+    if (!audioInitState.error) {
+      audioInitState.isInitialized = true;
+      console.log('✅ Audio subsystem pre-initialized');
+    } else {
+      audioInitState.isInitialized = false;
+      console.log('⚠️ Audio subsystem NOT initialized due to error:', audioInitState.error);
+    }
   } catch (error) {
     audioInitState.error = String(error);
     console.error('❌ Audio pre-initialization error:', error);

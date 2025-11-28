@@ -124,6 +124,10 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
 
     onVadScore: useCallback(({ vadScore }: { vadScore: number }) => {
       // Voice Activity Detection score (0-1)
+      // Log when VAD detects voice activity (score > 0.1)
+      if (vadScore > 0.1) {
+        console.log(`🎤 VAD Score: ${vadScore.toFixed(2)} (voice detected)`);
+      }
       setSessionState((prev) => ({
         ...prev,
         vadScore,

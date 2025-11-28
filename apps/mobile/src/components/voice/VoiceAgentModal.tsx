@@ -9,7 +9,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+// Icon import removed - using unicode arrows instead
 import { useVoiceSession } from '../../hooks/useVoiceSession';
 import { TranscriptionOverlay } from './TranscriptionOverlay';
 import { VoiceSphereWebView } from './VoiceSphereWebView';
@@ -57,6 +57,13 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }
   }, [transcript]);
+
+  // Log status changes to console (removed from UI per #8)
+  useEffect(() => {
+    const statusText = getStatusText();
+    const statusColor = getStatusColor();
+    console.log(`🔊 Voice Status: ${statusText} (${statusColor})`);
+  }, [sessionState.status, sessionState.isSpeaking, sessionState.isThinking, sessionState.isListening, waitingForInit]);
 
   // Auto-start session when modal opens - with audio initialization check
   useEffect(() => {
@@ -219,12 +226,7 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
             )}
           </View>
 
-          {/* Status Text */}
-          <View style={styles.statusContainer}>
-            <Text style={[styles.statusText, { color: getStatusColor() }]}>
-              {getStatusText()}
-            </Text>
-          </View>
+  {/* Status logged to console only - not displayed in UI */}
 
           {/* Collapsible Transcript View */}
           {transcript.length > 0 && (
@@ -238,11 +240,9 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
                 <Text style={styles.transcriptToggleText}>
                   {isTranscriptExpanded ? 'Hide Transcript' : 'Show Transcript'}
                 </Text>
-                <Icon
-                  name={isTranscriptExpanded ? 'chevron-down' : 'chevron-up'}
-                  size={20}
-                  color="#FFD700"
-                />
+                <Text style={styles.transcriptToggleArrow}>
+                  {isTranscriptExpanded ? '▼' : '▲'}
+                </Text>
               </TouchableOpacity>
 
               {/* Expandable Content */}
@@ -286,25 +286,7 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
             </View>
           )}
 
-          {/* Debug Info - Only show when no transcript */}
-          {transcript.length === 0 && (
-            <View style={styles.debugContainer}>
-              <Text style={styles.debugText}>Mode: {sessionState.mode}</Text>
-              <Text style={styles.debugText}>
-                Audio Level: {Math.round(sessionState.audioLevel * 100)}%
-              </Text>
-              {sessionState.conversationId && (
-                <Text style={styles.debugText}>
-                  Conversation ID: {sessionState.conversationId.substring(0, 12)}...
-                </Text>
-              )}
-              {sessionState.error && (
-                <Text style={[styles.debugText, styles.errorText]}>
-                  Error: {sessionState.error}
-                </Text>
-              )}
-            </View>
-          )}
+{/* Debug info logged to console only */}
         </View>
 
         {/* Live Transcription Overlay */}
@@ -393,7 +375,7 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    backgroundColor: 'rgba(38, 38, 36, 0.9)',
     zIndex: 10,
   },
   agentName: {
@@ -408,7 +390,7 @@ const styles = StyleSheet.create({
   statusContainer: {
     alignItems: 'center',
     paddingVertical: 12,
-    backgroundColor: 'rgba(17, 24, 39, 0.6)',
+    backgroundColor: 'rgba(38, 38, 36, 0.8)',
   },
   statusText: {
     fontSize: 18,
@@ -425,7 +407,7 @@ const styles = StyleSheet.create({
     maxHeight: 200,
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: 'rgba(17, 24, 39, 0.7)',
+    backgroundColor: 'rgba(38, 38, 36, 0.9)',
     borderRadius: 12,
   },
   transcriptContent: {
@@ -468,7 +450,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
     alignItems: 'center',
-    backgroundColor: 'rgba(17, 24, 39, 0.8)',
+    backgroundColor: 'rgba(38, 38, 36, 0.9)',
     zIndex: 10,
   },
   buttonRow: {
@@ -521,6 +503,11 @@ const styles = StyleSheet.create({
     color: '#FFD700',
     fontSize: 14,
     marginRight: 8,
+    fontWeight: '500',
+  },
+  transcriptToggleArrow: {
+    color: '#FFD700',
+    fontSize: 14,
     fontWeight: '500',
   },
 });
