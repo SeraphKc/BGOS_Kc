@@ -1,16 +1,41 @@
 import React, { useEffect } from 'react';
 import { Provider } from 'react-redux';
 import { PaperProvider } from 'react-native-paper';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, ActivityIndicator, View, StyleSheet } from 'react-native';
 import Toast, { BaseToast } from 'react-native-toast-message';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
+import { ClerkProvider, ClerkLoaded, ClerkLoading } from '@clerk/clerk-expo';
 import { createStore } from '@bgos/shared-state';
 import AppNavigator from './src/navigation/AppNavigator';
 import { theme } from './src/theme/theme';
 import { VoiceAgentProvider, useVoiceAgentModal } from './src/contexts/VoiceAgentContext';
 import { VoiceAgentModal } from './src/components/voice/VoiceAgentModal';
+import { tokenCache } from './src/services/clerkTokenCache';
+import { configureGoogleSignIn } from './src/config/googleSignIn';
+import { CLERK_PUBLISHABLE_KEY } from '@env';
+
+// Configure Google Sign-In before app renders
+configureGoogleSignIn();
 
 const store = createStore();
+
+// Clerk loading fallback component
+function ClerkLoadingFallback() {
+  return (
+    <View style={clerkStyles.loadingContainer}>
+      <ActivityIndicator size="large" color="#FFD900" />
+    </View>
+  );
+}
+
+const clerkStyles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgb(41, 41, 41)',
+  },
+});
 
 // Global audio initialization state - exported for VoiceAgentModal to check
 export const audioInitState = {
@@ -152,19 +177,34 @@ const toastConfig = {
 };
 
 function App(): React.JSX.Element {
+  // Validate Clerk publishable key
+  if (!CLERK_PUBLISHABLE_KEY) {
+    console.error('Missing CLERK_PUBLISHABLE_KEY in environment variables');
+  }
+
   return (
-    <Provider store={store}>
-      <ElevenLabsProvider>
-        <PaperProvider theme={theme}>
-          <VoiceAgentProvider>
-            <AudioInitializer />
-            <AppNavigator />
-            <VoiceModalRenderer />
-            <Toast config={toastConfig} />
-          </VoiceAgentProvider>
-        </PaperProvider>
-      </ElevenLabsProvider>
-    </Provider>
+    <ClerkProvider
+      publishableKey={CLERK_PUBLISHABLE_KEY || ''}
+      tokenCache={tokenCache}
+    >
+      <ClerkLoading>
+        <ClerkLoadingFallback />
+      </ClerkLoading>
+      <ClerkLoaded>
+        <Provider store={store}>
+          <ElevenLabsProvider>
+            <PaperProvider theme={theme}>
+              <VoiceAgentProvider>
+                <AudioInitializer />
+                <AppNavigator />
+                <VoiceModalRenderer />
+                <Toast config={toastConfig} />
+              </VoiceAgentProvider>
+            </PaperProvider>
+          </ElevenLabsProvider>
+        </Provider>
+      </ClerkLoaded>
+    </ClerkProvider>
   );
 }
 
