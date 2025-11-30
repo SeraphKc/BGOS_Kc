@@ -1,7 +1,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {Loader2} from 'lucide-react';
 import {AnimatePresence, motion} from 'framer-motion';
-import {useConversation} from '@11labs/react';
+import {useConversation} from '@elevenlabs/react';
 import {useDispatch} from 'react-redux';
 import {useTranscriptFetch} from '../../hooks/useTranscriptFetch';
 import {useNotification} from '../../hooks/useNotification';
@@ -441,13 +441,23 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
     }, []);
 
 
+    // Handler for sending text messages during voice session
+    const handleSendTextMessage = useCallback((text: string) => {
+        if (status === 'active' && text.trim()) {
+            console.log('[VoiceAgent] Sending text message:', text);
+            conversation.sendUserMessage(text.trim());
+            // Also update the live transcription to show what user typed
+            dispatch(setLiveUserTranscription(text.trim()));
+        }
+    }, [conversation, status, dispatch]);
+
     const prevStateRef = useRef({ status, isPaused });
-    
+
     useEffect(() => {
         const currentState = { status, isPaused };
         const prevState = prevStateRef.current;
 
-        if (updateVoiceState && 
+        if (updateVoiceState &&
             (currentState.status !== prevState.status || currentState.isPaused !== prevState.isPaused) &&
             status !== 'connecting') {
             prevStateRef.current = currentState;
@@ -458,10 +468,11 @@ export const VoiceAgentButton: React.FC<VoiceAgentButtonProps> = ({
                 onStart: handleStart,
                 onPause: handlePause,
                 onResume: handleResume,
-                onStop: handleStop
+                onStop: handleStop,
+                onSendTextMessage: handleSendTextMessage
             });
         }
-    }, [status, isPaused]);
+    }, [status, isPaused, handleSendTextMessage]);
 
 
     return (

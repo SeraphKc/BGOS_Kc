@@ -759,6 +759,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                         onPause={voiceState.onPause}
                         onResume={voiceState.onResume}
                         onStop={voiceState.onStop}
+                        onSendTextMessage={voiceState.onSendTextMessage}
                     />
                 )}
             </AnimatePresence>

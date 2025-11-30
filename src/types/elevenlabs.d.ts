@@ -1,19 +1,31 @@
-declare module '@11labs/react' {
+declare module '@elevenlabs/react' {
+    export type Role = 'user' | 'agent';
+    export type Status = 'connected' | 'connecting' | 'disconnected';
+
     export interface ConversationOptions {
-        apiKey: string;
+        apiKey?: string;
         agentId: string;
         onConnect?: () => void;
-        onMessage?: (message: any) => void;
+        onMessage?: (props: { message: string; source: Role }) => void;
         onError?: (error: any) => void;
         onDisconnect?: () => void;
+        onModeChange?: (mode: 'listening' | 'speaking') => void;
+        onStatusChange?: (status: Status) => void;
+        onDebug?: (event: any) => void;
+        onUnhandledClientToolCall?: (toolCall: any) => void;
     }
 
     export interface ConversationHook {
         startSession: (options?: any) => Promise<string>;
         endSession: () => Promise<void>;
-        setVolume: ({ volume }: { volume: number }) => void;
+        setVolume: (options: { volume: number }) => void;
         getInputByteFrequencyData: () => Uint8Array;
         isSpeaking: boolean;
+        status: Status;
+        // Text input methods
+        sendUserMessage: (text: string) => void;
+        sendContextualUpdate: (text: string) => void;
+        sendUserActivity: () => void;
     }
 
     export function useConversation(options: ConversationOptions): ConversationHook;

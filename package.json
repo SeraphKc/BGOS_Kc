@@ -60,7 +60,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@11labs/react": "^0.1.4",
+    "@elevenlabs/react": "^0.12.0",
     "@bgos/shared-state": "workspace:*",
     "@bgos/shared-types": "workspace:*",
     "@floating-ui/react": "^0.27.14",

@@ -8,15 +8,15 @@ importers:
 
   .:
     dependencies:
-      '@11labs/react':
-        specifier: ^0.1.4
-        version: 0.1.4(react@19.1.0)
       '@bgos/shared-state':
         specifier: workspace:*
         version: link:packages/shared-state
       '@bgos/shared-types':
         specifier: workspace:*
         version: link:packages/shared-types
+      '@elevenlabs/react':
+        specifier: ^0.12.0
+        version: 0.12.0(@types/dom-mediacapture-record@1.0.22)(react@19.1.0)
       '@floating-ui/react':
         specifier: ^0.27.14
         version: 0.27.16(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -413,16 +413,6 @@ packages:
     peerDependenciesMeta:
       graphql:
         optional: true
-
-  '@11labs/client@0.1.4':
-    resolution: {integrity: sha512-XxNl4GpNW9NYOD1P5apzZBpcNOP0Zu4goZu8Lud1iTIVkjv3fDp+hyurZoSTUdsik/TIeuxMgbd392M/EQgoKw==}
-    deprecated: This package is no longer maintained. Please use @elevenlabs/client for the latest version
-
-  '@11labs/react@0.1.4':
-    resolution: {integrity: sha512-iJ+cRfoj6WNQ9U48Umvhf4yw+LhmLYtkPXiU85Nj74paPQbSNBDTq6kwi7BTu2DtfgqP65T5BEjWhheV2IxogA==}
-    deprecated: This package is no longer maintained. Please use @elevenlabs/react for the latest version
-    peerDependencies:
-      react: '>=16.8.0'
 
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
@@ -1349,6 +1339,9 @@ packages:
     engines: {node: '>=14.14'}
     hasBin: true
 
+  '@elevenlabs/client@0.12.0':
+    resolution: {integrity: sha512-iMpDqvte8ozXT/jWcD4eKiik4yLigTMpmyMGCiuKsKajbS5ebSja/8T+qc/ZXmI1iRUy+wLTUJRGGYns1Tqj+g==}
+
   '@elevenlabs/react-native@0.5.2':
     resolution: {integrity: sha512-HfvoqyHmYYEPoUHtGN/boEpMbwb7zYyctAflWmcc6MeLvvhMxXOSVihynHKgmXp5vs0nWF5Tf6rl/4QIVJPDFA==}
     peerDependencies:
@@ -1358,8 +1351,16 @@ packages:
       react: '>=17.0.0'
       react-native: '>=0.70.0'
 
+  '@elevenlabs/react@0.12.0':
+    resolution: {integrity: sha512-74vSF302Blak2l1QohzFHfV+4GG37/pcRKHmZ07t1TmitM5h3MCEmp38ds1p/V3/XOlAFToLBFucfxabRpZygg==}
+    peerDependencies:
+      react: '>=16.8.0'
+
   '@elevenlabs/types@0.1.1':
     resolution: {integrity: sha512-IKB31KjNhRbCSHmdsMB6yvLzc6D74x5SvQWwhQv4Iz4kDyM5n7bo5T9awBz8HQd1ksop8BC/QGlmAesDZKZ7+A==}
+
+  '@elevenlabs/types@0.4.0':
+    resolution: {integrity: sha512-6CQb4r9DjepILhLybDxW0h8rvbsR8jPAp74HvFGYuvYdXcQRTkYTD9BQ4PV6VcuC1iqx0UljzJj8js3ADQ8EXw==}
 
   '@emnapi/core@1.7.0':
     resolution: {integrity: sha512-pJdKGq/1iquWYtv1RRSljZklxHCOCAJFJrImO5ZLKPJVJlVUcs8yFwNQlqS0Lo8xT1VAXXTCZocF9n26FWEKsw==}
@@ -8581,13 +8582,6 @@ snapshots:
 
   '@0no-co/graphql.web@1.2.0': {}
 
-  '@11labs/client@0.1.4': {}
-
-  '@11labs/react@0.1.4(react@19.1.0)':
-    dependencies:
-      '@11labs/client': 0.1.4
-      react: 19.1.0
-
   '@adraffy/ens-normalize@1.11.1': {}
 
   '@alloc/quick-lru@5.2.0': {}
@@ -10036,6 +10030,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@elevenlabs/client@0.12.0(@types/dom-mediacapture-record@1.0.22)':
+    dependencies:
+      '@elevenlabs/types': 0.4.0
+      livekit-client: 2.15.15(@types/dom-mediacapture-record@1.0.22)
+    transitivePeerDependencies:
+      - '@types/dom-mediacapture-record'
+
   '@elevenlabs/react-native@0.5.2(@livekit/react-native-webrtc@137.0.2(react-native@0.80.2(@babel/core@7.28.5)(@react-native-community/cli@15.1.3(typescript@5.9.3))(@types/react@19.2.2)(react@19.1.0)))(@livekit/react-native@2.9.4(@livekit/react-native-webrtc@137.0.2(react-native@0.80.2(@babel/core@7.28.5)(@react-native-community/cli@15.1.3(typescript@5.9.3))(@types/react@19.2.2)(react@19.1.0)))(livekit-client@2.15.15(@types/dom-mediacapture-record@1.0.22))(react-dom@19.1.0(react@19.1.0))(react-native@0.80.2(@babel/core@7.28.5)(@react-native-community/cli@15.1.3(typescript@5.9.3))(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)(tslib@2.8.1))(livekit-client@2.15.15(@types/dom-mediacapture-record@1.0.22))(react-native@0.80.2(@babel/core@7.28.5)(@react-native-community/cli@15.1.3(typescript@5.9.3))(@types/react@19.2.2)(react@19.1.0))(react@19.1.0)':
     dependencies:
       '@elevenlabs/types': 0.1.1
@@ -10045,7 +10046,16 @@ snapshots:
       react: 19.1.0
       react-native: 0.80.2(@babel/core@7.28.5)(@react-native-community/cli@15.1.3(typescript@5.9.3))(@types/react@19.2.2)(react@19.1.0)
 
+  '@elevenlabs/react@0.12.0(@types/dom-mediacapture-record@1.0.22)(react@19.1.0)':
+    dependencies:
+      '@elevenlabs/client': 0.12.0(@types/dom-mediacapture-record@1.0.22)
+      react: 19.1.0
+    transitivePeerDependencies:
+      - '@types/dom-mediacapture-record'
+
   '@elevenlabs/types@0.1.1': {}
+
+  '@elevenlabs/types@0.4.0': {}
 
   '@emnapi/core@1.7.0':
     dependencies:
