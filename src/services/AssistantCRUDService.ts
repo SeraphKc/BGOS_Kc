@@ -56,7 +56,7 @@ export async function updateAssistant(
 
 export async function deleteAssistant(userId: string, assistantId: string): Promise<boolean> {
     const url = `https://n8n-test.brandgrowthos.ai/webhook/b6f845bc-2d9c-43b2-8412-c81871c8bf89/assistants/${userId}/${assistantId}`;
-    
+
     const response = await fetch(url, {
         method: 'DELETE',
         headers: {
@@ -66,6 +66,28 @@ export async function deleteAssistant(userId: string, assistantId: string): Prom
 
     if (!response.ok) {
         throw new Error(`Failed to delete assistant: ${response.status} ${response.statusText}`);
+    }
+
+    return true;
+}
+
+export async function reorderAssistants(
+    userId: string,
+    orders: { id: string; displayOrder: number }[]
+): Promise<boolean> {
+    const url = `https://n8n-test.brandgrowthos.ai/webhook/b6f845bc-2d9c-43b2-8412-c81871c8bf89/assistants/${userId}/reorder`;
+
+    const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        body: JSON.stringify({ assistantOrders: orders }),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to reorder assistants: ${response.status} ${response.statusText}`);
     }
 
     return true;

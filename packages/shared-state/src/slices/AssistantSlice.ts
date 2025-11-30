@@ -76,6 +76,17 @@ const assistantSlice = createSlice({
                 state.list[index].starOrder = action.payload.starOrder;
             }
         },
+        reorderAssistants(state, action: PayloadAction<{id: string, displayOrder: number}[]>) {
+            // Update displayOrder for each assistant in the payload
+            action.payload.forEach(({ id, displayOrder }) => {
+                const index = state.list.findIndex(a => a.id === id);
+                if (index !== -1) {
+                    state.list[index].displayOrder = displayOrder;
+                }
+            });
+            // Sort list by displayOrder
+            state.list.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+        },
     },
 });
 
@@ -89,7 +100,8 @@ export const {
     setError,
     clearError,
     toggleStarAssistant,
-    updateAssistantStarOrder
+    updateAssistantStarOrder,
+    reorderAssistants
 } = assistantSlice.actions;
 
 export default assistantSlice.reducer;

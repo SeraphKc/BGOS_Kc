@@ -10,13 +10,14 @@ import addIcon from '../assets/icons/add.svg';
 import addWhiteIcon from '../assets/icons/add-white.svg';
 import newChatIcon from '../assets/icons/new-chat.svg';
 import { MessagesSquare, ChevronDown, ChevronUp } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, Reorder } from 'framer-motion';
 import { getInitials, getAvatarColor, avatarColors } from '../utils/avatarUtils';
 import { compareChatsByDate } from '../utils/dateFormatter';
 import {useAppSelector} from '../utils/hooks';
 import {selectSidebarCollapsed} from '../utils/selectors';
 import {setSidebarCollapsed} from '../slices/UISlice';
-import { toggleStarAssistant } from '../slices/AssistantSlice';
+import { toggleStarAssistant, reorderAssistants } from '../slices/AssistantSlice';
+import { reorderAssistants as reorderAssistantsAPI } from '../services/AssistantCRUDService';
 import { toggleStarChat } from '../slices/ChatSlice';
 import { logout } from '../slices/UserSlice';
 import EditAssistantModal from './EditAssistantModal';
@@ -88,6 +89,10 @@ const Sidebar: React.FC<SidebarProps> = ({
     const [isNewAssistantHovered, setIsNewAssistantHovered] = useState(false);
     const [isUserProfileHovered, setIsUserProfileHovered] = useState(false);
 
+    // Reorder state
+    const [orderedAssistants, setOrderedAssistants] = useState<Assistant[]>([]);
+    const [isDragging, setIsDragging] = useState(false);
+
     // Search state
     // TODO: Search functionality - Removed UI but preserved logic for future use
     // const [searchQuery, setSearchQuery] = useState('');
@@ -147,6 +152,44 @@ const Sidebar: React.FC<SidebarProps> = ({
             }
         };
     }, []);
+
+    // Sync orderedAssistants with assistants (sorted by displayOrder)
+    useEffect(() => {
+        const sorted = [...assistants].sort((a, b) =>
+            (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+        );
+        setOrderedAssistants(sorted);
+    }, [assistants]);
+
+    // Handle visual reorder during drag (no API call)
+    const handleReorder = (newOrder: Assistant[]) => {
+        setOrderedAssistants(newOrder);
+    };
+
+    // Save reorder to backend (called on drag end)
+    const saveReorder = async () => {
+        const orders = orderedAssistants.map((a, index) => ({
+            id: a.id,
+            displayOrder: index,
+        }));
+
+        // Update Redux state
+        dispatch(reorderAssistants(orders));
+
+        // Save to backend
+        try {
+            console.log('Saving reorder to backend:', orders);
+            await reorderAssistantsAPI(userId, orders);
+            console.log('Reorder saved successfully');
+        } catch (error) {
+            console.error('Failed to save reorder:', error);
+            // Revert to original order on failure
+            const sorted = [...assistants].sort((a, b) =>
+                (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+            );
+            setOrderedAssistants(sorted);
+        }
+    };
 
     const handleToggleCollapsed = () => {
         const newCollapsed = !collapsed;
@@ -457,19 +500,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     <LoadingSpinner overlaySize={20} />
                                 </div>
                             )}
-                            {assistants
-                                .slice()
-                                .sort((a, b) => {
-                                    // Sort starred first by starOrder, then unstarred
-                                    if (a.isStarred && !b.isStarred) return -1;
-                                    if (!a.isStarred && b.isStarred) return 1;
-                                    if (a.isStarred && b.isStarred) {
-                                        return (a.starOrder || 0) - (b.starOrder || 0);
-                                    }
-                                    // Unstarred items keep their original order
-                                    return 0;
-                                })
-                                .map((a) => {
+
+                            <Reorder.Group
+                                axis="y"
+                                values={orderedAssistants}
+                                onReorder={handleReorder}
+                                className={`flex flex-col ${collapsed ? 'items-center gap-2' : 'gap-1'}`}
+                                style={{ listStyle: 'none', padding: 0, margin: 0 }}
+                            >
+                            {orderedAssistants.map((a) => {
                                 const isOpen = openAssistant === a.id;
                                 const chatList = chats[a.id] || [];
                                 const unreadSum = chatList.reduce((sum, c) => sum + c.unread, 0);
@@ -477,11 +516,32 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 const isSelected = a.id === selectedAssistant;
 
                                 return (
-                                    <div key={a.id} className="">
+                                    <Reorder.Item
+                                        key={a.id}
+                                        value={a}
+                                        dragListener={!collapsed}
+                                        onDragStart={() => setIsDragging(true)}
+                                        onDragEnd={() => {
+                                            setIsDragging(false);
+                                            saveReorder();
+                                        }}
+                                        style={{ listStyle: 'none' }}
+                                        whileDrag={{
+                                            scale: 1.02,
+                                            boxShadow: '0 8px 24px rgba(255, 215, 0, 0.3)',
+                                            border: '1px solid #FFD700',
+                                            backgroundColor: '#2A2A2A',
+                                            zIndex: 50,
+                                        }}
+                                    >
                                         <motion.div
                                             className="flex items-center cursor-pointer relative transition-colors duration-200"
                                             style={{
-                                                backgroundColor: isSelected ? '#141512' : (isHovered ? 'rgba(255, 255, 255, 0.05)' : 'transparent'),
+                                                backgroundColor: isSelected
+                                                    ? '#141512'
+                                                    : isHovered
+                                                    ? 'rgba(255, 255, 255, 0.05)'
+                                                    : 'transparent',
                                                 borderRadius: '6px',
                                                 display: 'flex',
                                                 padding: '8px 9px 8px 12px',
@@ -492,9 +552,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                 userSelect: 'none',
                                                 WebkitUserSelect: 'none',
                                                 MozUserSelect: 'none',
-                                                msUserSelect: 'none'
+                                                msUserSelect: 'none',
                                             }}
-                                            onClick={() => handleAssistantClick(a, chatList)}
+                                            onClick={() => !isDragging && handleAssistantClick(a, chatList)}
                                             onMouseEnter={() => setHoveredAssistantId(a.id)}
                                             onMouseLeave={() => setHoveredAssistantId(null)}
                                             whileHover={{ x: 2 }}
@@ -653,9 +713,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                         })}
                                                 </div>
                                         )}
-                                    </div>
+                                    </Reorder.Item>
                                 );
                             })}
+                            </Reorder.Group>
                         </div>
 
                         {/* Recents Section - Inside scrollable area */}

@@ -11,6 +11,9 @@ export declare const setAssistants: import("@reduxjs/toolkit").ActionCreatorWith
 }, "assistants/updateAssistant">, removeAssistant: import("@reduxjs/toolkit").ActionCreatorWithPayload<string, "assistants/removeAssistant">, setLoading: import("@reduxjs/toolkit").ActionCreatorWithPayload<boolean, "assistants/setLoading">, setError: import("@reduxjs/toolkit").ActionCreatorWithPayload<string | null, "assistants/setError">, clearError: import("@reduxjs/toolkit").ActionCreatorWithoutPayload<"assistants/clearError">, toggleStarAssistant: import("@reduxjs/toolkit").ActionCreatorWithPayload<string, "assistants/toggleStarAssistant">, updateAssistantStarOrder: import("@reduxjs/toolkit").ActionCreatorWithPayload<{
     id: string;
     starOrder: number;
-}, "assistants/updateAssistantStarOrder">;
+}, "assistants/updateAssistantStarOrder">, reorderAssistants: import("@reduxjs/toolkit").ActionCreatorWithPayload<{
+    id: string;
+    displayOrder: number;
+}[], "assistants/reorderAssistants">;
 declare const _default: import("redux").Reducer<AssistantState>;
 export default _default;

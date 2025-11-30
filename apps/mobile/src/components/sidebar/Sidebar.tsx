@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Image,
 } from 'react-native';
@@ -21,6 +20,14 @@ import { DeleteChatDialog } from '../dialogs/DeleteChatDialog';
 import { DeleteAssistantDialog } from '../dialogs/DeleteAssistantDialog';
 import { EditAssistantModal } from '../modals/EditAssistantModal';
 import Logo from '../../assets/logo.svg';
+import {
+  ScaleDecorator,
+  RenderItemParams,
+  NestableScrollContainer,
+  NestableDraggableFlatList,
+} from 'react-native-draggable-flatlist';
+import { Assistant } from '@bgos/shared-types';
+import { reorderAssistants as reorderAssistantsAPI } from '../../services/assistantService';
 
 interface SidebarProps extends DrawerContentComponentProps {}
 
@@ -45,6 +52,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ navigation }) => {
   const [currentAssistantId, setCurrentAssistantId] = useState<string | null>(null);
   const [editingAssistant, setEditingAssistant] = useState<typeof assistants[0] | null>(null);
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [orderedAssistants, setOrderedAssistants] = useState<Assistant[]>([]);
+
+  // Sync ordered assistants with redux state
+  useEffect(() => {
+    const sorted = [...assistants].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+    setOrderedAssistants(sorted);
+  }, [assistants]);
+
+  // Handle drag end for reordering
+  const handleDragEnd = useCallback(async ({ data }: { data: Assistant[] }) => {
+    // Update local state immediately for responsiveness
+    setOrderedAssistants(data);
+
+    // Create orders array with new display order
+    const orders = data.map((assistant, index) => ({
+      id: assistant.id,
+      displayOrder: index,
+    }));
+
+    // Update Redux state
+    dispatch(AssistantActions.reorderAssistants(orders));
+
+    // Persist to backend
+    if (user?.id) {
+      try {
+        await reorderAssistantsAPI(user.id, orders);
+        console.log('Successfully reordered assistants');
+      } catch (error) {
+        console.error('Failed to persist reorder:', error);
+        // Revert to original order on failure
+        const sorted = [...assistants].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+        setOrderedAssistants(sorted);
+      }
+    }
+  }, [dispatch, user?.id, assistants]);
 
   const handleNewChat = () => {
     // Reset chat state and navigate to new chat
@@ -147,6 +189,132 @@ export const Sidebar: React.FC<SidebarProps> = ({ navigation }) => {
     setCurrentAssistantId(null);
   };
 
+  // Render assistant item for DraggableFlatList
+  const renderAssistantItem = useCallback(({ item: assistant, drag, isActive }: RenderItemParams<Assistant>) => {
+    const isExpanded = expandedAssistantId === assistant.id;
+    const assistantChats = getChatsForAssistant(assistant.id);
+    const isSelected = selectedAssistantId === assistant.id;
+
+    // Pre-compute avatar configuration
+    const isColorAvatar = assistant.avatarUrl && avatarColors.includes(assistant.avatarUrl);
+    const isImageAvatar = assistant.avatarUrl && !isColorAvatar;
+    const backgroundColor = isColorAvatar ? assistant.avatarUrl : getAvatarColor(assistant.name);
+
+    return (
+      <ScaleDecorator>
+        <View style={isActive && styles.draggingContainer}>
+          {/* Agent Item */}
+          <View
+            style={styles.agentItemContainer}
+            onTouchStart={() => setHoveredItemId(`assistant-${assistant.id}`)}
+            onTouchEnd={() => setHoveredItemId(null)}
+          >
+            <TouchableOpacity
+              style={[
+                styles.agentItem,
+                isSelected && styles.agentItemSelected,
+                isActive && styles.agentItemDragging,
+              ]}
+              onPress={() => handleSelectAssistant(assistant.id)}
+              onLongPress={drag}
+              delayLongPress={500}
+              activeOpacity={0.7}
+            >
+              {/* Avatar */}
+              <View
+                style={[
+                  styles.avatar,
+                  { backgroundColor },
+                ]}
+              >
+                {isImageAvatar ? (
+                  <Image
+                    source={{ uri: assistant.avatarUrl }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Text style={styles.avatarText}>
+                    {getInitials(assistant.name)}
+                  </Text>
+                )}
+              </View>
+
+              {/* Agent Info */}
+              <View style={styles.agentInfo}>
+                <Text style={styles.agentName} numberOfLines={1}>
+                  {assistant.name}
+                </Text>
+                {assistant.subtitle && (
+                  <Text style={styles.agentSubtitle} numberOfLines={1}>
+                    {assistant.subtitle}
+                  </Text>
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* Three Dots Menu */}
+            <AssistantItemMenu
+              assistant={assistant}
+              isSelected={isSelected}
+              isVisible={hoveredItemId === `assistant-${assistant.id}`}
+              onNewChat={handleNewChatWithAssistant}
+              onStar={handleStarAssistant}
+              onEdit={handleEditAssistant}
+              onDelete={handleDeleteAssistant}
+              onMenuToggle={() => {}}
+            />
+          </View>
+
+          {/* Expanded Chats */}
+          {isExpanded && assistantChats.length > 0 && (
+            <View style={styles.chatsContainer}>
+              {assistantChats
+                .sort((a, b) => getLastMessageTime(b.id) - getLastMessageTime(a.id))
+                .map((chat) => {
+                  const isChatSelected = selectedChatId === chat.id;
+                  return (
+                    <View
+                      key={chat.id}
+                      style={styles.chatItemContainer}
+                      onTouchStart={() => setHoveredItemId(`chat-${chat.id}`)}
+                      onTouchEnd={() => setHoveredItemId(null)}
+                    >
+                      <TouchableOpacity
+                        style={[
+                          styles.chatItem,
+                          isChatSelected && styles.chatItemSelected,
+                        ]}
+                        onPress={() => handleSelectChat(chat.id, assistant.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={styles.chatTitle}
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                        >
+                          {chat.title || 'Untitled'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {/* Three Dots Menu */}
+                      <ChatItemMenu
+                        chat={chat}
+                        isSelected={isChatSelected}
+                        isVisible={hoveredItemId === `chat-${chat.id}`}
+                        onRename={handleRenameChat}
+                        onDelete={handleDeleteChat}
+                        onStar={handleStarChat}
+                      />
+                    </View>
+                  );
+                })}
+            </View>
+          )}
+        </View>
+      </ScaleDecorator>
+    );
+  }, [expandedAssistantId, selectedAssistantId, selectedChatId, hoveredItemId, chatHistory]);
+
   // Chat menu handlers
   const handleStarChat = (chatId: string) => {
     dispatch(ChatActions.toggleStarChat(chatId));
@@ -216,129 +384,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ navigation }) => {
         <Text style={styles.sectionTitle}>Agents</Text>
       </View>
 
-      {/* Scrollable Content */}
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Agents List */}
+      {/* Scrollable Content with Draggable List */}
+      <NestableScrollContainer style={styles.scrollView}>
+        {/* Agents List - Draggable */}
         <View style={styles.section}>
-          {assistants.map((assistant) => {
-            const isExpanded = expandedAssistantId === assistant.id;
-            const assistantChats = getChatsForAssistant(assistant.id);
-            const isSelected = selectedAssistantId === assistant.id;
-
-            // Pre-compute avatar configuration to avoid inline complex expressions
-            const isColorAvatar = assistant.avatarUrl && avatarColors.includes(assistant.avatarUrl);
-            const isImageAvatar = assistant.avatarUrl && !isColorAvatar;
-            const backgroundColor = isColorAvatar ? assistant.avatarUrl : getAvatarColor(assistant.name);
-
-            return (
-              <View key={assistant.id}>
-                {/* Agent Item */}
-                <View
-                  style={styles.agentItemContainer}
-                  onTouchStart={() => setHoveredItemId(`assistant-${assistant.id}`)}
-                  onTouchEnd={() => setHoveredItemId(null)}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.agentItem,
-                      isSelected && styles.agentItemSelected,
-                    ]}
-                    onPress={() => handleSelectAssistant(assistant.id)}
-                    activeOpacity={0.7}
-                  >
-                    {/* Avatar */}
-                    <View
-                      style={[
-                        styles.avatar,
-                        { backgroundColor },
-                      ]}
-                    >
-                      {isImageAvatar ? (
-                        <Image
-                          source={{ uri: assistant.avatarUrl }}
-                          style={styles.avatarImage}
-                        />
-                      ) : (
-                        <Text style={styles.avatarText}>
-                          {getInitials(assistant.name)}
-                        </Text>
-                      )}
-                    </View>
-
-                    {/* Agent Info */}
-                    <View style={styles.agentInfo}>
-                      <Text style={styles.agentName} numberOfLines={1}>
-                        {assistant.name}
-                      </Text>
-                      {assistant.subtitle && (
-                        <Text style={styles.agentSubtitle} numberOfLines={1}>
-                          {assistant.subtitle}
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-
-                  {/* Three Dots Menu */}
-                  <AssistantItemMenu
-                    assistant={assistant}
-                    isSelected={isSelected}
-                    isVisible={hoveredItemId === `assistant-${assistant.id}`}
-                    onNewChat={handleNewChatWithAssistant}
-                    onStar={handleStarAssistant}
-                    onEdit={handleEditAssistant}
-                    onDelete={handleDeleteAssistant}
-                    onMenuToggle={() => {}}
-                  />
-                </View>
-
-                {/* Expanded Chats */}
-                {isExpanded && assistantChats.length > 0 && (
-                  <View style={styles.chatsContainer}>
-                    {assistantChats
-                      .sort((a, b) => getLastMessageTime(b.id) - getLastMessageTime(a.id))
-                      .map((chat) => {
-                        const isChatSelected = selectedChatId === chat.id;
-                        return (
-                          <View
-                            key={chat.id}
-                            style={styles.chatItemContainer}
-                            onTouchStart={() => setHoveredItemId(`chat-${chat.id}`)}
-                            onTouchEnd={() => setHoveredItemId(null)}
-                          >
-                            <TouchableOpacity
-                              style={[
-                                styles.chatItem,
-                                isChatSelected && styles.chatItemSelected,
-                              ]}
-                              onPress={() => handleSelectChat(chat.id, assistant.id)}
-                              activeOpacity={0.7}
-                            >
-                              <Text
-                                style={styles.chatTitle}
-                                numberOfLines={1}
-                                ellipsizeMode="tail"
-                              >
-                                {chat.title || 'Untitled'}
-                              </Text>
-                            </TouchableOpacity>
-
-                            {/* Three Dots Menu */}
-                            <ChatItemMenu
-                              chat={chat}
-                              isSelected={isChatSelected}
-                              isVisible={hoveredItemId === `chat-${chat.id}`}
-                              onRename={handleRenameChat}
-                              onDelete={handleDeleteChat}
-                              onStar={handleStarChat}
-                            />
-                          </View>
-                        );
-                      })}
-                  </View>
-                )}
-              </View>
-            );
-          })}
+          <NestableDraggableFlatList
+            data={orderedAssistants}
+            keyExtractor={(item) => item.id}
+            renderItem={renderAssistantItem}
+            onDragEnd={handleDragEnd}
+          />
         </View>
 
         {/* Recents Section */}
@@ -387,7 +442,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ navigation }) => {
             })
           )}
         </View>
-      </ScrollView>
+      </NestableScrollContainer>
 
       {/* Fixed Bottom - User Profile */}
       <View style={styles.footer}>
@@ -581,6 +636,18 @@ const styles = StyleSheet.create({
   },
   agentItemSelected: {
     backgroundColor: '#141512',
+  },
+  agentItemDragging: {
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+  },
+  draggingContainer: {
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   avatar: {
     width: 24,

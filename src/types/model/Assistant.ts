@@ -9,5 +9,6 @@ export type Assistant = {
     code: string;
     isStarred?: boolean;
     starOrder?: number;
+    displayOrder?: number;
 };
 

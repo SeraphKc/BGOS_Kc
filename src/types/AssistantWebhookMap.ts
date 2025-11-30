@@ -16,6 +16,7 @@ export function mapAssistant(assistant: any): Assistant {
         webhookUrl: assistant.webhook,
         s2sToken: assistant.s2s_token || '',
         code: assistant.code,
+        displayOrder: assistant.display_order ?? 0,
     };
 }
 
