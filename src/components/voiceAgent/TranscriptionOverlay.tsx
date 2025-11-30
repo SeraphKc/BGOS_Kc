@@ -4,181 +4,113 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface TranscriptionOverlayProps {
     userText: string;
     agentText: string;
-    /** Words per minute for pacing (default: 180, typical speech is 120-180 WPM) */
-    wordsPerMinute?: number;
+    isDrawerOpen?: boolean;
 }
 
 /**
- * TranscriptionOverlay
- * Minimalistic caption-style transcription display with word-by-word reveal
- * Syncs text display with approximate speaking pace
+ * TranscriptionOverlay - Simplified Block Display
+ *
+ * Accumulates consecutive agent messages into one block.
+ * Displays with fade in/out animation.
+ * Supports multi-line text wrapping.
  */
 export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({
     userText,
     agentText,
-    wordsPerMinute = 180
+    isDrawerOpen = false
 }) => {
-    const [displayText, setDisplayText] = useState<string>('');
-    const [revealedText, setRevealedText] = useState<string>('');
+    // Display state
+    const [displayText, setDisplayText] = useState('');
     const [isVisible, setIsVisible] = useState(false);
-    const [isAgentSpeaking, setIsAgentSpeaking] = useState(false);
+    const [isAgentText, setIsAgentText] = useState(false);
 
-    const revealIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    // Refs
+    const accumulatedTextRef = useRef<string>('');
     const fadeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    const wordsQueueRef = useRef<string[]>([]);
-    const currentWordIndexRef = useRef<number>(0);
-    const lastAgentTextRef = useRef<string>('');
 
-    // Calculate delay per word based on WPM
-    const msPerWord = Math.floor(60000 / wordsPerMinute);
-
-    // Clear all timers
-    const clearTimers = useCallback(() => {
-        if (revealIntervalRef.current) {
-            clearInterval(revealIntervalRef.current);
-            revealIntervalRef.current = null;
-        }
+    const clearFadeTimeout = useCallback(() => {
         if (fadeTimeoutRef.current) {
             clearTimeout(fadeTimeoutRef.current);
             fadeTimeoutRef.current = null;
         }
     }, []);
 
-    // Reveal words one by one for agent text
-    const startWordReveal = useCallback((text: string) => {
-        clearTimers();
-
-        const words = text.split(/\s+/).filter(w => w.length > 0);
-        wordsQueueRef.current = words;
-        currentWordIndexRef.current = 0;
-        setRevealedText('');
-        setIsVisible(true);
-        setIsAgentSpeaking(true);
-
-        if (words.length === 0) return;
-
-        // Reveal first word immediately
-        setRevealedText(words[0]);
-        currentWordIndexRef.current = 1;
-
-        // Continue revealing remaining words
-        if (words.length > 1) {
-            revealIntervalRef.current = setInterval(() => {
-                if (currentWordIndexRef.current < wordsQueueRef.current.length) {
-                    setRevealedText(prev => {
-                        const nextWord = wordsQueueRef.current[currentWordIndexRef.current];
-                        currentWordIndexRef.current++;
-                        return prev + ' ' + nextWord;
-                    });
-                } else {
-                    // All words revealed, schedule fade-out
-                    if (revealIntervalRef.current) {
-                        clearInterval(revealIntervalRef.current);
-                        revealIntervalRef.current = null;
-                    }
-                    setIsAgentSpeaking(false);
-                    fadeTimeoutRef.current = setTimeout(() => {
-                        setIsVisible(false);
-                    }, 3000);
-                }
-            }, msPerWord);
-        } else {
-            // Single word, just schedule fade-out
-            setIsAgentSpeaking(false);
-            fadeTimeoutRef.current = setTimeout(() => {
-                setIsVisible(false);
-            }, 3000);
-        }
-    }, [msPerWord, clearTimers]);
-
-    // Handle new agent text - append new words if it's a continuation
+    // Handle agent text - accumulate consecutive messages
     useEffect(() => {
-        if (agentText && agentText !== lastAgentTextRef.current) {
-            const previousText = lastAgentTextRef.current;
-            lastAgentTextRef.current = agentText;
-
-            // Check if new text is a continuation of previous
-            if (previousText && agentText.startsWith(previousText)) {
-                // Append only new words
-                const newPortion = agentText.slice(previousText.length).trim();
-                if (newPortion) {
-                    const newWords = newPortion.split(/\s+/).filter(w => w.length > 0);
-                    wordsQueueRef.current = [...wordsQueueRef.current, ...newWords];
-
-                    // Restart interval if it was stopped
-                    if (!revealIntervalRef.current && newWords.length > 0) {
-                        revealIntervalRef.current = setInterval(() => {
-                            if (currentWordIndexRef.current < wordsQueueRef.current.length) {
-                                setRevealedText(prev => {
-                                    const nextWord = wordsQueueRef.current[currentWordIndexRef.current];
-                                    currentWordIndexRef.current++;
-                                    return prev + ' ' + nextWord;
-                                });
-                            } else {
-                                if (revealIntervalRef.current) {
-                                    clearInterval(revealIntervalRef.current);
-                                    revealIntervalRef.current = null;
-                                }
-                                setIsAgentSpeaking(false);
-                                fadeTimeoutRef.current = setTimeout(() => {
-                                    setIsVisible(false);
-                                }, 3000);
-                            }
-                        }, msPerWord);
-                    }
-                }
-            } else {
-                // New text entirely, start fresh reveal
-                startWordReveal(agentText);
+        if (!agentText) {
+            // Agent stopped - schedule fade out after 2 seconds
+            if (isVisible && isAgentText) {
+                fadeTimeoutRef.current = setTimeout(() => {
+                    setIsVisible(false);
+                    setDisplayText('');
+                    accumulatedTextRef.current = '';
+                }, 2000);
             }
-
-            setDisplayText(agentText);
+            return;
         }
-    }, [agentText, msPerWord, startWordReveal]);
 
-    // Handle user text (show immediately, no word reveal needed)
+        // Clear any pending fade
+        clearFadeTimeout();
+
+        // Accumulate agent text (append if new, don't duplicate)
+        const newText = agentText.trim();
+        if (!accumulatedTextRef.current.includes(newText)) {
+            accumulatedTextRef.current = accumulatedTextRef.current
+                ? `${accumulatedTextRef.current} ${newText}`
+                : newText;
+        }
+
+        setDisplayText(accumulatedTextRef.current);
+        setIsAgentText(true);
+        setIsVisible(true);
+    }, [agentText, isVisible, isAgentText, clearFadeTimeout]);
+
+    // Handle user text - replaces agent text
     useEffect(() => {
-        if (userText && !agentText) {
-            clearTimers();
-            lastAgentTextRef.current = '';
-            setDisplayText(userText);
-            setRevealedText(userText);
-            setIsVisible(true);
-            setIsAgentSpeaking(false);
+        if (userText) {
+            // Clear agent accumulated text
+            accumulatedTextRef.current = '';
 
+            // Clear any pending fade
+            clearFadeTimeout();
+
+            setDisplayText(userText.trim());
+            setIsAgentText(false);
+            setIsVisible(true);
+
+            // User text fades out after 2 seconds
             fadeTimeoutRef.current = setTimeout(() => {
                 setIsVisible(false);
-            }, 5000);
+                setDisplayText('');
+            }, 2000);
         }
-    }, [userText, agentText, clearTimers]);
+    }, [userText, clearFadeTimeout]);
 
     // Cleanup on unmount
     useEffect(() => {
-        return () => clearTimers();
-    }, [clearTimers]);
+        return () => clearFadeTimeout();
+    }, [clearFadeTimeout]);
 
-    // Use revealed text for agent, full text for user
-    const textToShow = isAgentSpeaking || agentText ? revealedText : displayText;
+    // Dynamic bottom position based on drawer state
+    const bottomPosition = isDrawerOpen ? 220 : 140;
 
     return (
-        <AnimatePresence>
-            {isVisible && textToShow && (
+        <AnimatePresence mode="wait">
+            {isVisible && displayText && (
                 <motion.div
+                    key={isAgentText ? 'agent' : 'user'}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{
-                        duration: 0.4,
-                        ease: 'easeOut'
-                    }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
                     style={{
                         position: 'fixed',
-                        bottom: 140,
+                        bottom: bottomPosition,
                         left: 0,
                         right: 0,
                         display: 'flex',
                         justifyContent: 'center',
-                        zIndex: 999,
+                        zIndex: 1100,
                         pointerEvents: 'none',
                     }}
                 >
@@ -186,20 +118,15 @@ export const TranscriptionOverlay: React.FC<TranscriptionOverlayProps> = ({
                         style={{
                             fontSize: 16,
                             fontWeight: 500,
-                            color: isAgentSpeaking || agentText ? '#ffe01b' : '#ffffff',
+                            color: isAgentText ? '#ffe01b' : '#ffffff',
                             lineHeight: 1.6,
                             textShadow: '0 2px 8px rgba(0, 0, 0, 0.8), 0 0 2px rgba(0, 0, 0, 0.9)',
                             padding: '8px 16px',
                             maxWidth: '80%',
                             textAlign: 'center',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
                         }}
                     >
-                        {textToShow}
+                        {displayText}
                     </div>
                 </motion.div>
             )}
