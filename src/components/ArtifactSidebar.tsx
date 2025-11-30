@@ -10,6 +10,8 @@ import ArticleDisplay from './ArticleDisplay';
 import eyeIcon from '../assets/icons/eye.svg';
 import codeWhiteIcon from '../assets/icons/code-white.svg';
 import closeIcon from '../assets/icons/close.svg';
+import arrowDownIcon from '../assets/icons/arrow-down.svg';
+import AnimatedCheckmark from './AnimatedCheckmark';
 import { useNotification } from '../hooks/useNotification';
 
 interface ArtifactSidebarProps {
@@ -21,6 +23,9 @@ interface ArtifactSidebarProps {
 const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, selectedArtifact }) => {
     const [activeTab, setActiveTab] = React.useState<'artifact' | 'code'>('artifact');
     const [selectedImageIndex, setSelectedImageIndex] = React.useState<number>(0);
+    const [showCopyMenu, setShowCopyMenu] = React.useState<boolean>(false);
+    const [copiedType, setCopiedType] = React.useState<'text' | 'markdown' | null>(null);
+    const copyMenuRef = React.useRef<HTMLDivElement>(null);
 
     // Устанавливаем правильный таб по умолчанию в зависимости от типа контента
     React.useEffect(() => {
@@ -34,7 +39,222 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
     }, [selectedArtifact]);
 
     const { showNotification } = useNotification();
-    
+
+    // Close copy menu when clicking outside
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (copyMenuRef.current && !copyMenuRef.current.contains(event.target as Node)) {
+                setShowCopyMenu(false);
+            }
+        };
+
+        if (showCopyMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showCopyMenu]);
+
+    // Convert article content to plain text
+    const convertArticleToPlainText = (): string => {
+        if (!selectedArtifact?.article_text) return '';
+
+        const parsed = ArticleParser.parseArticleText(selectedArtifact.article_text);
+        const lines: string[] = [];
+
+        if (parsed.title) {
+            lines.push(parsed.title);
+            lines.push('');
+        }
+
+        // Interleave content in order of appearance
+        const text = selectedArtifact.article_text;
+        const elements: { type: string; content: string; index: number }[] = [];
+
+        // Find all elements with their positions
+        const headerMatches = text.matchAll(/<header>(.*?)<\/header>/g);
+        for (const match of headerMatches) {
+            elements.push({ type: 'header', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        const paragraphMatches = text.matchAll(/<paragraph>(.*?)<\/paragraph>/g);
+        for (const match of paragraphMatches) {
+            elements.push({ type: 'paragraph', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        const listMatches = text.matchAll(/<list>(.*?)<\/list>/g);
+        for (const match of listMatches) {
+            elements.push({ type: 'list', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        const quoteMatches = text.matchAll(/<quote>(.*?)<\/quote>/g);
+        for (const match of quoteMatches) {
+            elements.push({ type: 'quote', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        // Sort by position
+        elements.sort((a, b) => a.index - b.index);
+
+        for (const el of elements) {
+            if (el.type === 'header') {
+                lines.push(el.content.toUpperCase());
+                lines.push('');
+            } else if (el.type === 'paragraph') {
+                lines.push(el.content);
+                lines.push('');
+            } else if (el.type === 'list') {
+                const items = el.content.split('\n')
+                    .map(item => item.trim())
+                    .filter(item => item.startsWith('-') || item.startsWith('•'))
+                    .map(item => item.replace(/^[-•]\s*/, '').trim())
+                    .filter(item => item.length > 0);
+                for (const item of items) {
+                    lines.push(`• ${item}`);
+                }
+                lines.push('');
+            } else if (el.type === 'quote') {
+                lines.push(`"${el.content}"`);
+                lines.push('');
+            }
+        }
+
+        return lines.join('\n').trim();
+    };
+
+    // Convert article content to markdown
+    const convertArticleToMarkdown = (): string => {
+        if (!selectedArtifact?.article_text) return '';
+
+        const text = selectedArtifact.article_text;
+        const lines: string[] = [];
+        const elements: { type: string; content: string; index: number }[] = [];
+
+        // Find title
+        const titleMatch = text.match(/<title>(.*?)<\/title>/);
+        if (titleMatch) {
+            lines.push(`# ${titleMatch[1].trim()}`);
+            lines.push('');
+        }
+
+        // Find all elements with their positions
+        const headerMatches = text.matchAll(/<header>(.*?)<\/header>/g);
+        for (const match of headerMatches) {
+            elements.push({ type: 'header', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        const paragraphMatches = text.matchAll(/<paragraph>(.*?)<\/paragraph>/g);
+        for (const match of paragraphMatches) {
+            elements.push({ type: 'paragraph', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        const listMatches = text.matchAll(/<list>(.*?)<\/list>/g);
+        for (const match of listMatches) {
+            elements.push({ type: 'list', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        const quoteMatches = text.matchAll(/<quote>(.*?)<\/quote>/g);
+        for (const match of quoteMatches) {
+            elements.push({ type: 'quote', content: match[1].trim(), index: match.index || 0 });
+        }
+
+        // Sort by position
+        elements.sort((a, b) => a.index - b.index);
+
+        for (const el of elements) {
+            if (el.type === 'header') {
+                lines.push(`## ${el.content}`);
+                lines.push('');
+            } else if (el.type === 'paragraph') {
+                lines.push(el.content);
+                lines.push('');
+            } else if (el.type === 'list') {
+                const items = el.content.split('\n')
+                    .map(item => item.trim())
+                    .filter(item => item.startsWith('-') || item.startsWith('•'))
+                    .map(item => item.replace(/^[-•]\s*/, '').trim())
+                    .filter(item => item.length > 0);
+                for (const item of items) {
+                    lines.push(`- ${item}`);
+                }
+                lines.push('');
+            } else if (el.type === 'quote') {
+                lines.push(`> ${el.content}`);
+                lines.push('');
+            }
+        }
+
+        return lines.join('\n').trim();
+    };
+
+    // Convert code to plain text (strips any markdown formatting)
+    const convertCodeToPlainText = (): string => {
+        return selectedArtifact?.artifact_code || '';
+    };
+
+    // Convert code to markdown (wraps in code block)
+    const convertCodeToMarkdown = (): string => {
+        if (!selectedArtifact?.artifact_code) return '';
+        const language = CodeHighlighter.detectLanguage(selectedArtifact.artifact_code);
+        return `\`\`\`${language}\n${selectedArtifact.artifact_code}\n\`\`\``;
+    };
+
+    // Get copyable text content
+    const getCopyableContent = (asMarkdown: boolean): string => {
+        if (selectedArtifact?.isArticle && selectedArtifact?.article_text) {
+            return asMarkdown ? convertArticleToMarkdown() : convertArticleToPlainText();
+        }
+        if (selectedArtifact?.artifact_code) {
+            return asMarkdown ? convertCodeToMarkdown() : convertCodeToPlainText();
+        }
+        return selectedArtifact?.text || '';
+    };
+
+    // Handle copy as text
+    const handleCopyAsText = async () => {
+        const content = getCopyableContent(false);
+        if (content) {
+            try {
+                await navigator.clipboard.writeText(content);
+                setCopiedType('text');
+                setTimeout(() => setCopiedType(null), 1000);
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                showNotification({
+                    type: 'error',
+                    title: 'Copy failed',
+                    message: 'Failed to copy content. Please try again.',
+                    autoClose: true,
+                    duration: 3000
+                });
+            }
+        }
+        setShowCopyMenu(false);
+    };
+
+    // Handle copy as markdown
+    const handleCopyAsMarkdown = async () => {
+        const content = getCopyableContent(true);
+        if (content) {
+            try {
+                await navigator.clipboard.writeText(content);
+                setCopiedType('markdown');
+                setTimeout(() => setCopiedType(null), 1000);
+            } catch (error) {
+                console.error('Failed to copy:', error);
+                showNotification({
+                    type: 'error',
+                    title: 'Copy failed',
+                    message: 'Failed to copy content. Please try again.',
+                    autoClose: true,
+                    duration: 3000
+                });
+            }
+        }
+        setShowCopyMenu(false);
+    };
+
     if (!isOpen) return null;
 
     const handleCopyCode = async () => {
@@ -708,14 +928,14 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
         return renderDefaultContent();
     };
 
-    // Определяем, какую кнопку Copy показывать
-    const shouldShowCopyButton = () => {
-        // Не показываем кнопку копирования для статей
-        if (selectedArtifact?.isArticle) {
-            return false;
-        }
-        return selectedArtifact?.artifact_code || 
-               (selectedArtifact?.files && selectedArtifact.files.some(file => file.isImage)) ||
+    // Determine if we should show the copy dropdown (for text/code/article content)
+    const shouldShowCopyDropdown = () => {
+        return selectedArtifact?.isArticle || selectedArtifact?.artifact_code;
+    };
+
+    // Determine if we should show the simple copy button (for images/videos)
+    const shouldShowSimpleCopyButton = () => {
+        return (selectedArtifact?.files && selectedArtifact.files.some(file => file.isImage)) ||
                (selectedArtifact?.files && selectedArtifact.files.some(file => file.isVideo));
     };
 
@@ -777,20 +997,107 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {shouldShowCopyButton() && (
-                        <button 
+                    {/* Copy dropdown for text/code/article content */}
+                    {shouldShowCopyDropdown() && (
+                        <div className="relative" ref={copyMenuRef}>
+                            <button
+                                onClick={() => !copiedType && setShowCopyMenu(!showCopyMenu)}
+                                className="text-white font-medium focus:outline-none flex items-center gap-2 transition-all duration-200"
+                                style={{
+                                    backgroundColor: '#262624',
+                                    fontSize: '14px',
+                                    borderRadius: '8px',
+                                    padding: '8px 16px',
+                                    border: copiedType ? '1px solid #F4D03F' : '1px solid rgba(255, 255, 255, 0.1)',
+                                    minWidth: '90px',
+                                    justifyContent: 'center'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!copiedType) {
+                                        e.currentTarget.style.borderColor = '#FFD700';
+                                        e.currentTarget.style.backgroundColor = '#3c3837';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!copiedType) {
+                                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                                        e.currentTarget.style.backgroundColor = '#262624';
+                                    }
+                                }}
+                                title="Copy content"
+                            >
+                                {copiedType ? (
+                                    <AnimatedCheckmark size={16} />
+                                ) : (
+                                    <>
+                                        Copy
+                                        <img
+                                            src={arrowDownIcon}
+                                            alt="Menu"
+                                            style={{
+                                                width: '14px',
+                                                height: '14px',
+                                                transform: showCopyMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+                                                transition: 'transform 0.2s ease'
+                                            }}
+                                        />
+                                    </>
+                                )}
+                            </button>
+                            {showCopyMenu && !copiedType && (
+                                <div
+                                    className="absolute right-0 mt-2 py-1 rounded-lg shadow-lg z-50"
+                                    style={{
+                                        backgroundColor: '#262624',
+                                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        minWidth: '160px'
+                                    }}
+                                >
+                                    <button
+                                        onClick={handleCopyAsText}
+                                        className="w-full text-left px-4 py-2 text-white transition-all duration-200"
+                                        style={{ fontSize: '14px' }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#3c3837';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                    >
+                                        Copy as Text
+                                    </button>
+                                    <button
+                                        onClick={handleCopyAsMarkdown}
+                                        className="w-full text-left px-4 py-2 text-white transition-all duration-200"
+                                        style={{ fontSize: '14px' }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#3c3837';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }}
+                                    >
+                                        Copy as Markdown
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {/* Simple copy button for images/videos */}
+                    {shouldShowSimpleCopyButton() && (
+                        <button
                             onClick={handleCopy}
                             className="text-white font-bold focus:outline-none"
-                            style={{ 
+                            style={{
                                 backgroundColor: '#3c3837',
                                 fontSize: '16px',
                                 borderRadius: '8px',
                                 padding: '8px 16px'
                             }}
-                            title={selectedArtifact?.files && selectedArtifact.files.some(file => file.isImage) ? 
+                            title={selectedArtifact?.files && selectedArtifact.files.some(file => file.isImage) ?
                                    (selectedArtifact.is_multi_response && selectedArtifact.files.filter(file => file.isImage).length > 1) ?
-                                   `Copy image ${selectedImageIndex + 1} to clipboard` : 'Copy image to clipboard' : 
-                                   selectedArtifact?.files && selectedArtifact.files.some(file => file.isVideo) ? 'Download video' : 'Copy code to clipboard'}
+                                   `Copy image ${selectedImageIndex + 1} to clipboard` : 'Copy image to clipboard' :
+                                   'Download video'}
                         >
                             {selectedArtifact?.files && selectedArtifact.files.some(file => file.isVideo) ? 'Download' : 'Copy'}
                         </button>
