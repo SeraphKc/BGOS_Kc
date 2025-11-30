@@ -12,6 +12,7 @@ import {
   Alert,
   Linking,
   BackHandler,
+  AppState,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
@@ -27,6 +28,7 @@ export const VoiceAgentScreen: React.FC = () => {
   const navigation = useNavigation();
   const { onTranscriptReady } = useVoiceAgentModal();
   const [permissionError, setPermissionError] = useState<string | undefined>();
+  const isMounted = useRef(true);
 
   console.log('🔵 VoiceAgentScreen RENDER');
 
@@ -35,14 +37,15 @@ export const VoiceAgentScreen: React.FC = () => {
   );
 
   // Memoize agentId to prevent unnecessary re-initialization of voice session
-  // Only change when the actual s2sToken value changes, not when object reference changes
   const agentId = useMemo(() => selectedAssistant?.s2sToken, [selectedAssistant?.s2sToken]);
 
-  // Track component lifecycle for diagnostics
+  // Track component lifecycle
   useEffect(() => {
+    isMounted.current = true;
     console.log('✅ VoiceAgentScreen MOUNTED');
     return () => {
       console.log('🔴 VoiceAgentScreen UNMOUNTED');
+      isMounted.current = false;
     };
   }, []);
 
@@ -69,17 +72,12 @@ export const VoiceAgentScreen: React.FC = () => {
   const conversationIdRef = useRef<string | null>(null);
 
   // Ref to track current session status - solves stale closure bug in navigation listeners
-  // Navigation events can fire between React renders, so the listener callback needs to
-  // access the latest value via a ref rather than depending on the captured closure value
   const sessionStatusRef = useRef(sessionState.status);
 
   // Keep the ref in sync with the current status
   useEffect(() => {
     sessionStatusRef.current = sessionState.status;
-    console.log('🔵 sessionStatusRef updated to:', sessionState.status);
   }, [sessionState.status]);
-
-  console.log('🔵 VoiceAgentScreen - status:', sessionState.status, 'mode:', sessionState.mode, 'conversationId:', sessionState.conversationId);
 
   // Auto-scroll transcript to bottom when new messages arrive
   useEffect(() => {
@@ -94,21 +92,15 @@ export const VoiceAgentScreen: React.FC = () => {
   }, [sessionState.conversationId]);
 
   // Handle cleanup and prevent accidental dismissal during active session
-  // IMPORTANT: Use sessionStatusRef.current instead of sessionState.status to avoid stale closure bug
-  // The ref always has the latest value, even when navigation events fire between React renders
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       const currentStatus = sessionStatusRef.current;
-      console.log('🔵 beforeRemove fired - currentStatus from ref:', currentStatus);
-
+      
       // Only prevent navigation if session is active
       if (currentStatus === 'connected' || currentStatus === 'connecting') {
-        // Prevent the default navigation behavior
         e.preventDefault();
-
         console.log('⚠️ Attempted to dismiss voice screen during active session');
 
-        // Show confirmation alert
         Alert.alert(
           'End Voice Session?',
           'Your voice session is still active. Do you want to end it and go back?',
@@ -116,23 +108,18 @@ export const VoiceAgentScreen: React.FC = () => {
             {
               text: 'Cancel',
               style: 'cancel',
-              onPress: () => {
-                console.log('User cancelled navigation - staying on voice screen');
-              },
+              onPress: () => {},
             },
             {
               text: 'End Session',
               style: 'destructive',
               onPress: () => {
-                console.log('🧹 User confirmed - ending session and navigating back');
                 endSession()
                   .then(() => {
-                    // Allow navigation after cleanup
                     navigation.dispatch(e.data.action);
                   })
                   .catch((err) => {
                     console.warn('⚠️ Error cleaning up session on navigation:', err);
-                    // Still navigate even if cleanup fails
                     navigation.dispatch(e.data.action);
                   });
               },
@@ -143,7 +130,7 @@ export const VoiceAgentScreen: React.FC = () => {
     });
 
     return unsubscribe;
-  }, [navigation, endSession]); // Removed sessionState.status - using ref instead
+  }, [navigation, endSession]); 
 
   // Handle manual session start
   const handleStart = useCallback(async () => {
@@ -153,69 +140,74 @@ export const VoiceAgentScreen: React.FC = () => {
       return;
     }
 
-    // explicit permission check for Android
+    setPermissionError(undefined);
+
+    // Explicit permission check for Android
     if (Platform.OS === 'android') {
       try {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          {
-            title: 'Microphone Permission',
-            message: 'This app needs access to your microphone to talk to the AI agent.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          console.log('❌ Microphone permission denied');
-          setPermissionError('Microphone permission needed');
-          Alert.alert(
-            'Permission Required',
-            'Microphone access is required to use the voice agent. Please enable it in settings.',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Open Settings', onPress: () => Linking.openSettings() }
-            ]
+        const checkResult = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+        
+        if (!checkResult) {
+          console.log('🎤 Requesting microphone permission...');
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            {
+              title: 'Microphone Permission',
+              message: 'This app needs access to your microphone to talk to the AI agent.',
+              buttonNeutral: 'Ask Me Later',
+              buttonNegative: 'Cancel',
+              buttonPositive: 'OK',
+            }
           );
-          return;
+
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            console.log('❌ Microphone permission denied');
+            setPermissionError('Microphone permission needed');
+            return;
+          }
+          console.log('✅ Microphone permission granted');
+          
+          // Extra safety delay if we just got permissions to let audio system initialize
+          await new Promise(resolve => setTimeout(resolve, 800));
         }
-        console.log('✅ Microphone permission granted');
       } catch (err) {
-        console.warn(err);
+        console.warn('Permission check error:', err);
         return;
       }
     }
 
+    if (!isMounted.current) {
+      console.log('⚠️ Component unmounted during permission check, aborting start');
+      return;
+    }
+
     try {
-      console.log('🚀 Starting voice session with agent:', selectedAssistant?.name);
-      console.log('🔑 Agent s2sToken:', agentId?.substring(0, 20) + '...');
+      console.log('🚀 Starting voice session...');
 
-      setPermissionError(undefined);
-      
-      // Start our custom foreground service via a Native Module call would be ideal,
-      // but since we don't have one exposed easily, we rely on the permission grant 
-      // and the hope that the simple presence of the service in the Manifest satisfies the OS
-      // or that we can eventually trigger it. 
-      // Ideally: NativeModules.VoiceServiceModule.startService();
-
-      // Add a small delay to ensure audio context is ready after permission grant
-      // Use proper async/await pattern to catch errors (setTimeout callbacks bypass outer try-catch)
       const delayedStart = async () => {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Standard small delay to ensure UI is ready
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        if (!isMounted.current) return;
+        
         try {
           await startSession();
           console.log('✅ Voice session start command sent');
         } catch (err) {
-          console.error('❌ Failed to start session:', err);
-          setPermissionError('Failed to start voice session');
+          if (isMounted.current) {
+            console.error('❌ Failed to start session:', err);
+            setPermissionError('Failed to start voice session');
+          }
         }
       };
-      delayedStart();
+      
+      await delayedStart();
 
     } catch (err) {
-      console.error('❌ Failed during session initialization:', err);
-      setPermissionError('Failed to initialize voice session');
+      if (isMounted.current) {
+        console.error('❌ Failed during session initialization:', err);
+        setPermissionError('Failed to initialize voice session');
+      }
     }
   }, [agentId, selectedAssistant, startSession]);
 
@@ -226,28 +218,22 @@ export const VoiceAgentScreen: React.FC = () => {
     await endSession();
 
     if (conversationIdRef.current && onTranscriptReady) {
-      console.log('🟡 Calling onTranscriptReady with conversationId:', conversationIdRef.current);
       onTranscriptReady({
         conversationId: conversationIdRef.current,
       });
     }
 
-    console.log('🟡 Navigating back');
     if (navigation.canGoBack()) {
       navigation.goBack();
     }
   }, [endSession, onTranscriptReady, navigation]);
 
-  // Handle Android back button during active session
-  // IMPORTANT: Use sessionStatusRef.current instead of sessionState.status to avoid stale closure bug
+  // Handle Android back button
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       const currentStatus = sessionStatusRef.current;
-      console.log('🔵 BackHandler fired - currentStatus from ref:', currentStatus);
 
       if (currentStatus === 'connected' || currentStatus === 'connecting') {
-        // Block back button during active session
-        console.log('⚠️ Android back button pressed during active session');
         Alert.alert(
           'End Voice Session?',
           'Do you want to end the voice session?',
@@ -255,27 +241,24 @@ export const VoiceAgentScreen: React.FC = () => {
             {
               text: 'Cancel',
               style: 'cancel',
-              onPress: () => {
-                console.log('User cancelled back button - staying on voice screen');
-              },
+              onPress: () => {},
             },
             {
               text: 'End Session',
               style: 'destructive',
               onPress: () => {
-                console.log('🧹 User confirmed back button - ending session');
                 handleStop();
               },
             },
           ]
         );
-        return true; // Prevent default back behavior
+        return true; 
       }
-      return false; // Allow default back behavior when idle
+      return false;
     });
 
     return () => backHandler.remove();
-  }, [handleStop]); // Removed sessionState.status - using ref instead
+  }, [handleStop]);
 
   const getStatusText = () => {
     if (permissionError) return permissionError;
@@ -301,7 +284,7 @@ export const VoiceAgentScreen: React.FC = () => {
     <>
       <StatusBar backgroundColor="#212121" barStyle="light-content" />
       <View style={styles.container}>
-        {/* Header with assistant name */}
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerText}>
             {selectedAssistant?.name || 'Voice Assistant'}
@@ -311,7 +294,7 @@ export const VoiceAgentScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Voice Visualizer */}
+        {/* Visualizer & Status */}
         <View style={styles.visualizerContainer}>
           <VoiceVisualizer
             isActive={isConnected}
@@ -333,7 +316,7 @@ export const VoiceAgentScreen: React.FC = () => {
             </Text>
           )}
 
-          {/* Show Start button when idle */}
+          {/* Start button */}
           {isIdle && !hasError && (
             <TouchableOpacity
               style={styles.startButton}
@@ -344,7 +327,7 @@ export const VoiceAgentScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Show retry button on error */}
+          {/* Retry button */}
           {hasError && (
             <TouchableOpacity
               style={styles.retryButton}
@@ -356,7 +339,7 @@ export const VoiceAgentScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Transcript View */}
+        {/* Transcript */}
         {transcript.length > 0 && (
           <ScrollView
             ref={scrollViewRef}
@@ -395,18 +378,17 @@ export const VoiceAgentScreen: React.FC = () => {
           </ScrollView>
         )}
 
-        {/* Live Transcription Overlay */}
+        {/* Live Transcription */}
         <TranscriptionOverlay
           userText=""
           agentText=""
           visible={isConnected}
         />
 
-        {/* Control Buttons - Only show when connected */}
+        {/* Controls */}
         {isConnected && (
           <View style={styles.controlsContainer}>
             <View style={styles.bottomButtons}>
-              {/* End Call Button */}
               <TouchableOpacity
                 style={[styles.controlButton, styles.endCallButton]}
                 onPress={handleStop}

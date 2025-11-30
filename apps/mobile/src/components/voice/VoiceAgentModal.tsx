@@ -43,6 +43,9 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
   // Store conversationId in ref to access in handleEndCall after session ends
   const conversationIdRef = useRef<string | null>(null);
 
+  // Track previous status to detect transitions (for auto-close on disconnect)
+  const prevStatusRef = useRef<string>(sessionState.status);
+
   // Keep conversationId ref updated
   useEffect(() => {
     if (conversationId) {
@@ -64,6 +67,61 @@ export const VoiceAgentModal: React.FC<VoiceAgentModalProps> = ({
     const statusColor = getStatusColor();
     console.log(`🔊 Voice Status: ${statusText} (${statusColor})`);
   }, [sessionState.status, sessionState.isSpeaking, sessionState.isThinking, sessionState.isListening, waitingForInit]);
+
+  // Auto-close modal when ElevenLabs ends the conversation (#9)
+  // This triggers when user says "goodbye" and AI ends the call
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    const currentStatus = sessionState.status;
+
+    // Update the ref for next render
+    prevStatusRef.current = currentStatus;
+
+    // Only trigger if we transitioned from 'connected' to 'disconnected'
+    // This means ElevenLabs ended the conversation (not user pressing end call)
+    if (prevStatus === 'connected' && currentStatus === 'disconnected' && !isEndingCall) {
+      console.log('🔌 ElevenLabs ended conversation - auto-closing modal...');
+
+      // Trigger the end call flow (without calling endSession since already disconnected)
+      const handleAutoClose = async () => {
+        setIsEndingCall(true);
+
+        const storedConversationId = conversationIdRef.current;
+        console.log('📝 Auto-close - Conversation ID:', storedConversationId);
+
+        // Fetch transcript if we have a conversation ID
+        if (storedConversationId && onTranscriptReady) {
+          try {
+            console.log('⏳ Waiting for transcript to be ready...');
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            console.log('📥 Fetching transcript from ElevenLabs...');
+            const transcriptData = await fetchConversationTranscript(storedConversationId);
+
+            console.log('✅ Transcript fetched:', transcriptData?.length, 'messages');
+
+            onTranscriptReady({
+              conversationId: storedConversationId,
+              transcript: transcriptData,
+            });
+          } catch (error) {
+            console.error('❌ Failed to fetch transcript:', error);
+            onTranscriptReady({
+              conversationId: storedConversationId,
+              transcript: undefined,
+            });
+          }
+        }
+
+        // Reset state and close modal
+        conversationIdRef.current = null;
+        setIsEndingCall(false);
+        onClose();
+      };
+
+      handleAutoClose();
+    }
+  }, [sessionState.status, isEndingCall, onTranscriptReady, onClose]);
 
   // Auto-start session when modal opens - with audio initialization check
   useEffect(() => {
@@ -375,7 +433,6 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 16,
-    backgroundColor: 'rgba(38, 38, 36, 0.9)',
     zIndex: 10,
   },
   agentName: {
@@ -450,7 +507,6 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
     alignItems: 'center',
-    backgroundColor: 'rgba(38, 38, 36, 0.9)',
     zIndex: 10,
   },
   buttonRow: {

@@ -1,4 +1,7 @@
 {
   "name": "BGOSMobile",
-  "displayName": "BG OS Assistant"
+  "displayName": "BG OS Assistant",
+  "expo": {
+    "scheme": "bgos"
+  }
 }

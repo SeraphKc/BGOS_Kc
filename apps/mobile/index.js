@@ -5,7 +5,8 @@
 import {AppRegistry} from 'react-native';
 import { registerGlobals } from '@livekit/react-native';
 import App from './App';
-import {name as appName} from './app.json';
+// Use 'main' as component name to match expo prebuild native configuration
+const appName = 'main';
 
 // Global error handlers to catch any hidden errors
 const originalHandler = ErrorUtils.getGlobalHandler();

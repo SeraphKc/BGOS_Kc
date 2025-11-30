@@ -7,11 +7,14 @@ import {
   ScrollView,
   StyleSheet,
   Modal,
+  Alert,
 } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
+import { useAuth } from '@clerk/clerk-expo';
 import { RootState, updateUser } from '@bgos/shared-state';
 import { COLORS, getInitials, getAvatarColor } from '@bgos/shared-logic';
 import { ChevronDownIcon } from '../../components/icons/ChevronDownIcon';
+import Toast from 'react-native-toast-message';
 
 const workRoleOptions = [
   'Select your work function',
@@ -30,6 +33,7 @@ const workRoleOptions = [
 
 export default function SettingsScreen({ navigation }: any) {
   const dispatch = useDispatch();
+  const { signOut } = useAuth();
   const currentUser = useSelector((state: RootState) => state.user.currentUser);
 
   // Original values for cancel functionality
@@ -40,6 +44,46 @@ export default function SettingsScreen({ navigation }: any) {
   const [fullName, setFullName] = useState(currentUser?.name || '');
   const [workRole, setWorkRole] = useState(currentUser?.role || '');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
+  // Handle sign out
+  const handleSignOut = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSigningOut(true);
+              await signOut();
+              Toast.show({
+                type: 'success',
+                text1: 'Signed Out',
+                text2: 'You have been signed out successfully',
+              });
+              // Navigation will be handled automatically by AppNavigator
+            } catch (error: any) {
+              console.error('Sign out error:', error);
+              Toast.show({
+                type: 'error',
+                text1: 'Sign Out Failed',
+                text2: error.message || 'Could not sign out',
+              });
+            } finally {
+              setSigningOut(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleSelectRole = (role: string) => {
     if (role !== 'Select your work function') {
@@ -160,6 +204,21 @@ export default function SettingsScreen({ navigation }: any) {
               </View>
             </View>
           </View>
+        </View>
+
+        {/* Account Section */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Account</Text>
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+            disabled={signingOut}
+          >
+            <Text style={styles.signOutButtonText}>
+              {signingOut ? 'Signing Out...' : 'Sign Out'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -452,5 +511,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Styrene-B',
     fontWeight: '600',
+  },
+  signOutButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#DC3545',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  signOutButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontFamily: 'Styrene-B',
+    fontWeight: '700',
   },
 });

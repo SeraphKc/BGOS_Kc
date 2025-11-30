@@ -18,12 +18,32 @@ export interface VoiceSessionState {
   conversationId: string | null;
   audioLevel: number;
   vadScore: number;
+  disconnectReason: 'user' | 'agent' | 'error' | 'unknown' | null;
+  // Tool call tracking
+  pendingToolCalls: ToolCallInfo[];
+  lastToolEvent: ToolEvent | null;
 }
 
 export interface TranscriptMessage {
   id: string;
   message: string;
   source: 'user' | 'agent';
+  timestamp: Date;
+}
+
+// Tool call tracking for full tool support
+export interface ToolCallInfo {
+  tool_call_id: string;
+  tool_name: string;
+  parameters: any;
+  status: 'pending' | 'completed' | 'error';
+  timestamp: Date;
+}
+
+export interface ToolEvent {
+  type: 'request' | 'response' | 'client_call' | 'mcp';
+  tool_name: string;
+  data: any;
   timestamp: Date;
 }
 
@@ -39,6 +59,9 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
     conversationId: null,
     audioLevel: 0,
     vadScore: 0,
+    disconnectReason: null,
+    pendingToolCalls: [],
+    lastToolEvent: null,
   });
 
   const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
@@ -65,11 +88,13 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
       }));
     }, []),
 
-    onDisconnect: useCallback(() => {
-      console.log('🔌 Voice session disconnected');
+    onDisconnect: useCallback((details?: { reason?: string }) => {
+      const reason = (details?.reason as 'user' | 'agent' | 'error') || 'unknown';
+      console.log('🔌 Voice session disconnected, reason:', reason);
       setSessionState((prev) => ({
         ...prev,
         status: 'disconnected',
+        disconnectReason: reason,
         isSpeaking: false,
         isListening: false,
       }));
@@ -100,6 +125,21 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
         isListening: mode === 'listening',
         isThinking: mode === 'thinking',
       }));
+    }, []),
+
+    // Track connection status changes - fires when agent ends call
+    onStatusChange: useCallback(({ status }: { status: string }) => {
+      console.log('📡 Voice connection status changed:', status);
+
+      // When status changes to disconnected/disconnecting, update state
+      if (status === 'disconnected' || status === 'disconnecting') {
+        setSessionState((prev) => ({
+          ...prev,
+          status: 'disconnected',
+          isSpeaking: false,
+          isListening: false,
+        }));
+      }
     }, []),
 
     onMessage: useCallback((message: any) => {
@@ -142,6 +182,110 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
     onAgentChatResponsePart: useCallback((props: any) => {
       // Streaming agent response
       console.log('💬 Agent response part:', props);
+    }, []),
+
+    // ============ TOOL CALLBACKS - Full Tool Support ============
+
+    // 1. Tool Request - fires when agent STARTS using a tool
+    onAgentToolRequest: useCallback((request: any) => {
+      console.log('🔧 Agent tool REQUEST:', JSON.stringify(request, null, 2));
+
+      // Track pending tool
+      setSessionState((prev) => ({
+        ...prev,
+        pendingToolCalls: [...prev.pendingToolCalls, {
+          tool_call_id: request.tool_call_id || `tool-${Date.now()}`,
+          tool_name: request.tool_name,
+          parameters: request.parameters,
+          status: 'pending',
+          timestamp: new Date(),
+        }],
+        lastToolEvent: {
+          type: 'request',
+          tool_name: request.tool_name,
+          data: request,
+          timestamp: new Date(),
+        },
+      }));
+
+      // Handle end_call immediately when request comes in
+      if (request.tool_name === 'end_call') {
+        console.log('📞 Agent initiating end_call tool');
+      }
+    }, []),
+
+    // 2. Tool Response - fires when tool execution completes
+    onAgentToolResponse: useCallback((response: any) => {
+      console.log('🔧 Agent tool RESPONSE:', JSON.stringify(response, null, 2));
+
+      // Update tool status to completed
+      setSessionState((prev) => ({
+        ...prev,
+        pendingToolCalls: prev.pendingToolCalls.map((tc) =>
+          tc.tool_call_id === response.tool_call_id
+            ? { ...tc, status: 'completed' as const }
+            : tc
+        ),
+        lastToolEvent: {
+          type: 'response',
+          tool_name: response.tool_name,
+          data: response,
+          timestamp: new Date(),
+        },
+      }));
+
+      // Detect agent ending the call via end_call tool
+      if (response.tool_name === 'end_call') {
+        console.log('📞 end_call completed - triggering disconnect with reason: agent');
+        setSessionState((prev) => ({
+          ...prev,
+          status: 'disconnected',
+          disconnectReason: 'agent',
+          isSpeaking: false,
+          isListening: false,
+          isThinking: false,
+          mode: 'idle',
+        }));
+      }
+    }, []),
+
+    // 3. Client Tool Call - for tools the agent invokes that we must handle
+    onUnhandledClientToolCall: useCallback((toolCall: any) => {
+      console.log('🛠️ Client tool call:', JSON.stringify(toolCall, null, 2));
+
+      setSessionState((prev) => ({
+        ...prev,
+        lastToolEvent: {
+          type: 'client_call',
+          tool_name: toolCall.tool_name,
+          data: toolCall,
+          timestamp: new Date(),
+        },
+      }));
+
+      // TODO: Handle specific client tools here and return response to agent
+      // Example: if (toolCall.tool_name === 'navigate') { ... toolCall.respond({ success: true }); }
+    }, []),
+
+    // 4. MCP Tool Call - Model Context Protocol tools
+    onMCPToolCall: useCallback((mcpCall: any) => {
+      console.log('🔌 MCP tool call:', JSON.stringify(mcpCall, null, 2));
+
+      setSessionState((prev) => ({
+        ...prev,
+        lastToolEvent: {
+          type: 'mcp',
+          tool_name: mcpCall.tool_name,
+          data: mcpCall,
+          timestamp: new Date(),
+        },
+      }));
+    }, []),
+
+    // 5. Debug Events - for troubleshooting all SDK events
+    onDebug: useCallback((event: any) => {
+      // Log ALL debug events to help diagnose tool issues
+      console.log('🐛 DEBUG:', event.type || 'unknown', JSON.stringify(event, null, 2));
     }, []),
   });
 
@@ -199,9 +343,28 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
 
       // Start the conversation with the token and optional dynamic variables
       // Access conversation via ref for stability
+      // CRITICAL: Enable all tool events in clientEvents to receive tool call information
       await conversationRef.current.startSession({
         conversationToken,
         ...(dynamicVariables && { dynamicVariables }),
+        overrides: {
+          conversation: {
+            // Enable all necessary client events for full tool support
+            clientEvents: [
+              // Core conversation events
+              'agent_response',
+              'agent_response_correction',
+              'user_transcript',
+              'interruption',
+              'vad_score',
+              // Tool events - CRITICAL for detecting end_call and other tools
+              'agent_tool_request',   // When agent STARTS using a tool
+              'agent_tool_response',  // When tool execution completes
+              'client_tool_call',     // For client-side tools
+              'mcp_tool_call',        // For MCP tools
+            ],
+          },
+        },
       });
 
       console.log('✅ Voice session started successfully');
@@ -304,5 +467,8 @@ export const useVoiceSession = ({ agentId, dynamicVariables }: UseVoiceSessionPr
     toggleMute,
     sendUserActivity,
     sendContextualUpdate,
+    // Tool state exports
+    pendingToolCalls: sessionState.pendingToolCalls,
+    lastToolEvent: sessionState.lastToolEvent,
   };
 };
