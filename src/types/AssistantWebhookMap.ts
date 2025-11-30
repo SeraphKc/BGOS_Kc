@@ -8,8 +8,8 @@ export interface AssistantWebhookMap {
 
 export function mapAssistant(assistant: any): Assistant {
     return {
-        id: assistant.id,
-        userId: assistant.user_id,
+        id: String(assistant.id),
+        userId: String(assistant.user_id),
         name: assistant.name,
         subtitle: assistant.subtitle,
         avatarUrl: assistant.avatar_url,
@@ -22,8 +22,8 @@ export function mapAssistant(assistant: any): Assistant {
 
 export function mapChat(chat: any): Chat {
     return {
-        id: chat.id,
-        assistantId: chat.assistant_id,
+        id: String(chat.id),
+        assistantId: String(chat.assistant_id),
         title: chat.title,
         unread: Number(chat.unread),
         feedbackPeriod: chat.feedback_period ? new Date(chat.feedback_period) : undefined,
@@ -34,8 +34,8 @@ export function mapChat(chat: any): Chat {
 
 export function mapChatHistory(chatHistory: any): ChatHistory {
     return {
-        id: chatHistory.id,
-        chatId: chatHistory.chat_id,
+        id: String(chatHistory.id),
+        chatId: String(chatHistory.chat_id),
         sender: chatHistory.sender as Sender,
         sentDate: chatHistory.sent_date,
         text: chatHistory.text,
