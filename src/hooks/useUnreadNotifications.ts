@@ -79,7 +79,8 @@ export const useUnreadNotifications = ({ selectedChatId, onOpenChat }: UseUnread
         chatId,
         chatTitle: chat.title,
         unreadCount,
-        assistantName: assistant.name
+        assistantName: assistant.name,
+        avatarUrl: assistant.avatarUrl || undefined
       });
 
     } catch (error) {

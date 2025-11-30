@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, globalShortcut, Menu, Tray, nativeImage, Notification } = require('electron');
 const path = require('node:path');
+const { NotificationManager } = require('./notification/notificationManager');
 
 // Set app name for notifications
 app.setName('BGOS');
@@ -19,6 +20,7 @@ if (require('electron-squirrel-startup')) {
 
 let tray = null;
 let mainWindow = null;
+let notificationManager = null;
 
 const createWindow = () => {
   // Create the browser window.
@@ -307,6 +309,13 @@ ipcMain.handle('send-webhook-request', async (event, { url, formData }) => {
 app.whenReady().then(() => {
   createWindow();
 
+  // Initialize custom notification manager
+  notificationManager = new NotificationManager(
+    mainWindow,
+    NOTIFICATION_PRELOAD_WEBPACK_ENTRY,
+    NOTIFICATION_WEBPACK_ENTRY
+  );
+
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   app.on('activate', () => {
@@ -328,68 +337,55 @@ app.on('window-all-closed', (event) => {
 // Clean up tray when app is quitting
 app.on('before-quit', () => {
   app.isQuiting = true;
+  // Clean up custom notifications
+  if (notificationManager) {
+    notificationManager.closeAll();
+  }
   if (tray) {
     tray.destroy();
   }
 });
 
 // IPC handlers for unread message notifications
-ipcMain.handle('show-unread-notification', async (event, { chatId, chatTitle, unreadCount, assistantName }) => {
+ipcMain.handle('show-unread-notification', async (event, { chatId, chatTitle, unreadCount, assistantName, avatarUrl }) => {
   try {
-    // Check if notifications are supported
+    // Use custom notification manager for branded notifications
+    if (notificationManager) {
+      return await notificationManager.showNotification({
+        chatId,
+        chatTitle,
+        unreadCount,
+        assistantName,
+        avatarUrl
+      });
+    }
+
+    // Fallback to native notification if custom manager not initialized
     if (!Notification.isSupported()) {
       console.log('Notifications not supported on this platform');
       return { success: false, error: 'Notifications not supported' };
     }
 
-    // Create unique notification ID to avoid conflicts
     const notificationId = `unread-${chatId}-${Date.now()}`;
-
-    // Icon path for notifications
     const notificationIconPath = app.isPackaged
       ? path.join(process.resourcesPath, 'app.asar', 'src', 'assets', 'icon.ico')
       : path.join(__dirname, '..', '..', 'src', 'assets', 'icon.ico');
 
-    // Create notification
     const notification = new Notification({
       title: `New message from ${assistantName}`,
-      body: `${unreadCount} an unread message in the chat "${chatTitle}"`,
+      body: `${unreadCount} unread message${unreadCount > 1 ? 's' : ''} in "${chatTitle}"`,
       icon: notificationIconPath,
-      silent: false, // Play default notification sound
+      silent: false,
       requireInteraction: false,
-      tag: notificationId, // Use tag to replace notifications with same tag
-      actions: [
-        {
-          type: 'button',
-          text: 'open chat'
-        }
-      ]
+      tag: notificationId
     });
 
-    // Handle notification click
     notification.on('click', () => {
-      console.log('Notification clicked for chat:', chatId);
       if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
-        // Send message to renderer to open specific chat
         mainWindow.webContents.send('open-chat-notification', { chatId });
       }
-    });
-
-    // Handle action button click
-    notification.on('action', (event, index) => {
-      if (index === 0) {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-          mainWindow.webContents.send('open-chat-notification', { chatId });
-        }
-      }
-    });
-
-    // Handle notification close
-    notification.on('close', () => {
     });
 
     notification.show();

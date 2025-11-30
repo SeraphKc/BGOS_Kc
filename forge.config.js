@@ -63,6 +63,14 @@ module.exports = {
                 js: './src/preload.js',
               },
             },
+            {
+              html: './src/notification/notification.html',
+              js: './src/notification/notificationRenderer.tsx',
+              name: 'notification',
+              preload: {
+                js: './src/notification/notificationPreload.js',
+              },
+            },
           ],
         },
       },
