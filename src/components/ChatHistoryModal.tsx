@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store';
 import { removeChat } from '../slices/ChatSlice';
 import { setSidebarCollapsed } from '../slices/UISlice';
 import { getRelativeTimeFromChat, compareChatsByDate } from '../utils/dateFormatter';
-import { useNotification } from '../hooks/useNotification';
+import { deleteChat } from '../services/ChatCRUDService';
 import BulkDeleteConfirmDialog from './BulkDeleteConfirmDialog';
 
 interface ChatHistoryModalProps {
@@ -17,9 +17,9 @@ interface ChatHistoryModalProps {
 
 const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, onSelectChat, onSelectAssistant, resetChatState }) => {
     const dispatch = useDispatch();
-    const { showNotification } = useNotification();
     const chats = useSelector((state: RootState) => state.chats.list);
     const assistants = useSelector((state: RootState) => state.assistants.list);
+    const userId = useSelector((state: RootState) => state.user.currentUser?.id);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [isSelectMode, setIsSelectMode] = useState(false);
@@ -27,6 +27,12 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
     const [isShaking, setIsShaking] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteSuccess, setShowDeleteSuccess] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [isDeleteShaking, setIsDeleteShaking] = useState(false);
+
+    // Long press detection
+    const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Filter and sort chats based on search query (title and messages)
     const filteredChats = useMemo(() => {
@@ -72,37 +78,72 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
         setShowDeleteDialog(true);
     };
 
-    const handleConfirmDelete = () => {
+    // Long press handlers
+    const handleLongPressStart = (chatId: string) => {
+        longPressTimerRef.current = setTimeout(() => {
+            setIsSelectMode(true);
+            setSelectedChatIds(new Set([chatId]));
+        }, 500); // 500ms for long press
+    };
+
+    const handleLongPressEnd = () => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!userId) return;
+
         setIsDeleting(true);
+        setDeleteError(null);
+
+        const chatIds = Array.from(selectedChatIds);
+        const successfulDeletes: string[] = [];
+        const failedDeletes: string[] = [];
 
         try {
-            selectedChatIds.forEach(chatId => {
-                dispatch(removeChat(chatId));
-            });
+            // Process deletions sequentially to avoid rate limiting
+            for (const chatId of chatIds) {
+                try {
+                    await deleteChat(userId, chatId);
+                    successfulDeletes.push(chatId);
+                    // Update Redux immediately after each successful deletion
+                    dispatch(removeChat(chatId));
+                } catch (err) {
+                    console.error(`Failed to delete chat ${chatId}:`, err);
+                    failedDeletes.push(chatId);
+                }
+            }
 
-            showNotification({
-                type: 'success',
-                title: 'Chats deleted',
-                message: `${selectedChatIds.size} chat${selectedChatIds.size > 1 ? 's' : ''} deleted successfully.`,
-                autoClose: true,
-                duration: 3000
-            });
+            if (failedDeletes.length > 0) {
+                setDeleteError(`Failed to delete ${failedDeletes.length} chat(s). Please try again.`);
+                setIsDeleteShaking(true);
+                setTimeout(() => setIsDeleteShaking(false), 500);
+            }
 
-            setSelectedChatIds(new Set());
-            setIsSelectMode(false);
+            if (successfulDeletes.length > 0) {
+                setShowDeleteSuccess(true);
+            }
         } catch (error) {
             console.error('Error deleting chats:', error);
-            showNotification({
-                type: 'error',
-                title: 'Delete failed',
-                message: 'Failed to delete chats. Please try again.',
-                autoClose: true,
-                duration: 3000
-            });
+            setDeleteError('Failed to delete chats. Please try again.');
+            setIsDeleteShaking(true);
+            setTimeout(() => setIsDeleteShaking(false), 500);
         } finally {
             setIsDeleting(false);
-            setShowDeleteDialog(false);
         }
+    };
+
+    const handleDeleteDialogClose = () => {
+        if (showDeleteSuccess) {
+            setSelectedChatIds(new Set());
+            setIsSelectMode(false);
+        }
+        setShowDeleteDialog(false);
+        setShowDeleteSuccess(false);
+        setDeleteError(null);
     };
 
     const handleNewChat = () => {
@@ -123,9 +164,8 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
             return;
         }
 
-        // Navigate to the chat using the callbacks
+        // Navigate to the chat (handleSelectChat also sets the assistant)
         onSelectChat(chatId);
-        onSelectAssistant(assistantId);
         dispatch(setSidebarCollapsed(true));
         onClose();
     };
@@ -328,16 +368,17 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
                                     key={chat.id}
                                     className="flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-200"
                                     onClick={() => handleChatClick(chat.id, chat.assistantId)}
+                                    onMouseDown={() => handleLongPressStart(chat.id)}
+                                    onMouseUp={handleLongPressEnd}
                                     style={{
                                         backgroundColor: selectedChatIds.has(chat.id)
-                                            ? '#3d4f5c'
+                                            ? 'rgba(255, 215, 0, 0.15)'
                                             : '#2a2a28',
                                         border: selectedChatIds.has(chat.id)
-                                            ? '1px solid #5a9fd4'
+                                            ? '1px solid #FFD700'
                                             : '1px solid #3c3c3a',
-                                        ':hover': {
-                                            backgroundColor: isSelectMode ? undefined : '#323230'
-                                        }
+                                        userSelect: 'none',
+                                        WebkitUserSelect: 'none',
                                     }}
                                     onMouseEnter={(e) => {
                                         if (!isSelectMode && !selectedChatIds.has(chat.id)) {
@@ -345,6 +386,7 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
                                         }
                                     }}
                                     onMouseLeave={(e) => {
+                                        handleLongPressEnd();
                                         if (!selectedChatIds.has(chat.id)) {
                                             e.currentTarget.style.backgroundColor = '#2a2a28';
                                         }
@@ -359,7 +401,7 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
                                                 handleToggleSelect(chat.id);
                                             }}
                                             className="w-4 h-4 cursor-pointer"
-                                            style={{ accentColor: '#5a9fd4' }}
+                                            style={{ accentColor: '#FFD700' }}
                                         />
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -397,8 +439,11 @@ const ChatHistoryModal: React.FC<ChatHistoryModalProps> = ({ isOpen, onClose, on
                 isOpen={showDeleteDialog}
                 chatCount={selectedChatIds.size}
                 onConfirm={handleConfirmDelete}
-                onCancel={() => setShowDeleteDialog(false)}
+                onCancel={handleDeleteDialogClose}
                 isDeleting={isDeleting}
+                showSuccess={showDeleteSuccess}
+                error={deleteError}
+                isShaking={isDeleteShaking}
             />
         </div>
     );

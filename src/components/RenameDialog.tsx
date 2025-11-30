@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { renameChat } from '../services/ChatCRUDService';
-import { useNotification } from '../hooks/useNotification';
+import { useShake } from '../hooks/useShake';
+import DialogSuccessState from './DialogSuccessState';
 
 interface RenameDialogProps {
     isOpen: boolean;
@@ -19,14 +20,19 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
     onSave,
     onCancel
 }) => {
-    const { showNotification } = useNotification();
     const [newTitle, setNewTitle] = useState(currentTitle);
     const [isSaving, setIsSaving] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [savedTitle, setSavedTitle] = useState('');
+    const { isShaking, triggerShake } = useShake();
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (isOpen) {
             setNewTitle(currentTitle);
+            setError(null);
+            setShowSuccess(false);
             // Focus input after a short delay to ensure it's rendered
             setTimeout(() => {
                 inputRef.current?.focus();
@@ -36,43 +42,33 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
     }, [isOpen, currentTitle]);
 
     const handleSave = async () => {
-        if (newTitle.trim()) {
-            let operationSuccess: boolean = false;
-            setIsSaving(true);
-            try {
-                const success = await renameChat(userId, chatId, newTitle.trim());
-                if (success) {
-                    onSave(newTitle.trim());
-                    operationSuccess = true;
-                } else {
-                    console.error('Failed to rename chat');
-                    operationSuccess = false;
-                }
-            } catch (error) {
-                console.error('Error renaming chat:', error);
-                operationSuccess = false;
-            } finally {
-                setIsSaving(false);
-            }
+        if (!newTitle.trim()) return;
 
-            if (operationSuccess) {
-                showNotification({
-                    type: 'success',
-                    title: 'Chat renamed',
-                    message: `Chat has been renamed to "${newTitle.trim()}".`,
-                    autoClose: true,
-                    duration: 3000
-                });
+        setIsSaving(true);
+        setError(null);
+
+        try {
+            const success = await renameChat(userId, chatId, newTitle.trim());
+            if (success) {
+                setSavedTitle(newTitle.trim());
+                setShowSuccess(true);
             } else {
-                showNotification({
-                    type: 'error',
-                    title: 'Failed to rename chat',
-                    message: 'Failed to rename chat. Please try again.',
-                    autoClose: true,
-                    duration: 3000
-                });
+                console.error('Failed to rename chat');
+                setError('Failed to rename chat. Please try again.');
+                triggerShake();
             }
+        } catch (err) {
+            console.error('Error renaming chat:', err);
+            setError('Failed to rename chat. Please try again.');
+            triggerShake();
+        } finally {
+            setIsSaving(false);
         }
+    };
+
+    const handleSuccessComplete = () => {
+        setShowSuccess(false);
+        onSave(savedTitle);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -88,14 +84,14 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
-            <div 
+            <div
                 className="absolute inset-0 bg-black/50"
-                onClick={onCancel}
+                onClick={!showSuccess ? onCancel : undefined}
             />
-            
+
             {/* Dialog */}
-            <div 
-                className="relative max-w-md w-full mx-4 rounded-lg border shadow-lg"
+            <div
+                className={`relative max-w-md w-full mx-4 rounded-lg border shadow-lg ${isShaking ? 'shake' : ''}`}
                 style={{
                     backgroundColor: '#262624',
                     borderColor: '#3c3c3a',
@@ -103,55 +99,71 @@ const RenameDialog: React.FC<RenameDialogProps> = ({
                 }}
             >
                 <div className="p-6">
-                    {/* Title */}
-                    <h3 className="text-lg font-semibold mb-4 text-white">
-                        Rename chat
-                    </h3>
-                    
-                    {/* Input */}
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={newTitle}
-                        onChange={(e) => setNewTitle(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        style={{
-                            backgroundColor: '#3c3c3a',
-                            color: '#ffffff',
-                            border: '1px solid #3c3c3a'
-                        }}
-                        placeholder="Enter new chat title..."
-                        disabled={isSaving}
-                    />
-                    
-                    {/* Buttons */}
-                    <div className="flex gap-3 justify-end mt-6">
-                        <button
-                            onClick={onCancel}
-                            disabled={isSaving}
-                            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{
-                                backgroundColor: '#3c3c3a',
-                                color: '#ffffff',
-                                border: '1px solid #3c3c3a'
-                            }}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleSave}
-                            disabled={!newTitle.trim() || isSaving}
-                            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{
-                                backgroundColor: '#FFD900',
-                                color: '#262624',
-                                border: '1px solid transparent'
-                            }}
-                        >
-                            {isSaving ? 'Saving...' : 'Save'}
-                        </button>
-                    </div>
+                    {showSuccess ? (
+                        <DialogSuccessState
+                            message="Chat renamed"
+                            onComplete={handleSuccessComplete}
+                        />
+                    ) : (
+                        <>
+                            {/* Title */}
+                            <h3 className="text-lg font-semibold mb-4 text-white">
+                                Rename chat
+                            </h3>
+
+                            {/* Input */}
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={newTitle}
+                                onChange={(e) => setNewTitle(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                                style={{
+                                    backgroundColor: '#3c3c3a',
+                                    color: '#ffffff',
+                                    border: '1px solid #3c3c3a'
+                                }}
+                                placeholder="Enter new chat title..."
+                                disabled={isSaving}
+                            />
+
+                            {/* Error message */}
+                            {error && (
+                                <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                                    <p className="text-sm text-red-400">{error}</p>
+                                </div>
+                            )}
+
+                            {/* Buttons */}
+                            <div className="flex gap-3 justify-end mt-6">
+                                <button
+                                    onClick={onCancel}
+                                    disabled={isSaving}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        backgroundColor: '#3c3c3a',
+                                        color: '#ffffff',
+                                        border: '1px solid #3c3c3a'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={!newTitle.trim() || isSaving}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        backgroundColor: '#FFD900',
+                                        color: '#262624',
+                                        border: '1px solid transparent'
+                                    }}
+                                >
+                                    {isSaving ? 'Saving...' : 'Save'}
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

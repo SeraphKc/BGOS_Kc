@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { deleteChat } from '../services/ChatCRUDService';
-import { useNotification } from '../hooks/useNotification';
+import { useShake } from '../hooks/useShake';
+import DialogSuccessState from './DialogSuccessState';
 
 interface DeleteChatConfirmationDialogProps {
     isOpen: boolean;
@@ -17,45 +18,36 @@ const DeleteChatConfirmationDialog: React.FC<DeleteChatConfirmationDialogProps> 
     onConfirm,
     onCancel
 }) => {
-    const { showNotification } = useNotification();
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const { isShaking, triggerShake } = useShake();
 
     const handleConfirm = async () => {
         setIsDeleting(true);
-        let operationSuccess: boolean = false;
+        setError(null);
+
         try {
             const success = await deleteChat(userId, chatId);
             if (success) {
-                onConfirm();
-                operationSuccess = true;
+                setShowSuccess(true);
             } else {
                 console.error('Failed to delete chat');
-                operationSuccess = false;
+                setError('Failed to delete chat. Please try again.');
+                triggerShake();
             }
-        } catch (error) {
-            console.error('Error deleting chat:', error);
-            operationSuccess = false;
+        } catch (err) {
+            console.error('Error deleting chat:', err);
+            setError('Failed to delete chat. Please try again.');
+            triggerShake();
         } finally {
             setIsDeleting(false);
         }
+    };
 
-        if (operationSuccess) {
-            showNotification({
-                type: 'success',
-                title: 'Chat deleted',
-                message: 'Chat has been successfully deleted.',
-                autoClose: true,
-                duration: 3000
-            });
-        } else {
-            showNotification({
-                type: 'error',
-                title: 'Failed to delete chat',
-                message: 'Failed to delete chat. Please try again.',
-                autoClose: true,
-                duration: 3000
-            });
-        }
+    const handleSuccessComplete = () => {
+        setShowSuccess(false);
+        onConfirm();
     };
 
     if (!isOpen) return null;
@@ -63,14 +55,14 @@ const DeleteChatConfirmationDialog: React.FC<DeleteChatConfirmationDialogProps> 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
             {/* Backdrop */}
-            <div 
+            <div
                 className="absolute inset-0 bg-black/50"
-                onClick={onCancel}
+                onClick={!showSuccess ? onCancel : undefined}
             />
-            
+
             {/* Dialog */}
-            <div 
-                className="relative max-w-md w-full mx-4 rounded-lg border shadow-lg"
+            <div
+                className={`relative max-w-md w-full mx-4 rounded-lg border shadow-lg ${isShaking ? 'shake' : ''}`}
                 style={{
                     backgroundColor: '#262624',
                     borderColor: '#3c3c3a',
@@ -78,43 +70,59 @@ const DeleteChatConfirmationDialog: React.FC<DeleteChatConfirmationDialogProps> 
                 }}
             >
                 <div className="p-6">
-                    {/* Title */}
-                    <h3 className="text-lg font-semibold mb-4 text-white">
-                        Delete chat?
-                    </h3>
-                    
-                    {/* Message */}
-                    <p className="text-gray-300 mb-6">
-                        Are you sure you want to delete this chat?
-                    </p>
-                    
-                    {/* Buttons */}
-                    <div className="flex gap-3 justify-end">
-                        <button
-                            onClick={onCancel}
-                            disabled={isDeleting}
-                            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{
-                                backgroundColor: '#3c3c3a',
-                                color: '#ffffff',
-                                border: '1px solid #3c3c3a'
-                            }}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleConfirm}
-                            disabled={isDeleting}
-                            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                            style={{
-                                backgroundColor: '#dc2626',
-                                color: '#ffffff',
-                                border: '1px solid #dc2626'
-                            }}
-                        >
-                            {isDeleting ? 'Deleting...' : 'Delete'}
-                        </button>
-                    </div>
+                    {showSuccess ? (
+                        <DialogSuccessState
+                            message="Chat deleted"
+                            onComplete={handleSuccessComplete}
+                        />
+                    ) : (
+                        <>
+                            {/* Title */}
+                            <h3 className="text-lg font-semibold mb-4 text-white">
+                                Delete chat?
+                            </h3>
+
+                            {/* Message */}
+                            <p className="text-gray-300 mb-6">
+                                Are you sure you want to delete this chat?
+                            </p>
+
+                            {/* Error message */}
+                            {error && (
+                                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                                    <p className="text-sm text-red-400">{error}</p>
+                                </div>
+                            )}
+
+                            {/* Buttons */}
+                            <div className="flex gap-3 justify-end">
+                                <button
+                                    onClick={onCancel}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        backgroundColor: '#3c3c3a',
+                                        color: '#ffffff',
+                                        border: '1px solid #3c3c3a'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirm}
+                                    disabled={isDeleting}
+                                    className="px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        backgroundColor: '#dc2626',
+                                        color: '#ffffff',
+                                        border: '1px solid #dc2626'
+                                    }}
+                                >
+                                    {isDeleting ? 'Deleting...' : 'Delete'}
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

@@ -1,9 +1,9 @@
 import React, {useRef, useEffect, useState} from 'react';
 import {createAssistant} from '../services/AssistantCRUDService';
-import { useNotification } from '../hooks/useNotification';
 import { validateImageFile } from '../utils/imageUtils';
 import { avatarColors, getInitials } from '../utils/avatarUtils';
 import { Upload, ZoomIn, ZoomOut, Check, X } from 'lucide-react';
+import DialogSuccessState from './DialogSuccessState';
 
 interface NewAssistantModalProps {
     onClose: () => void;
@@ -12,7 +12,6 @@ interface NewAssistantModalProps {
 }
 
 const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, onCreate}) => {
-    const { showNotification } = useNotification();
     const modalRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,6 +30,11 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
 
     // Shake animation state
     const [shake, setShake] = useState(false);
+
+    // Success and error states
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [imageError, setImageError] = useState<string | null>(null);
 
     const [fields, setFields] = useState({
         name: '',
@@ -71,16 +75,12 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setImageError(null);
+
         // Validate file
         const validationError = validateImageFile(file);
         if (validationError) {
-            showNotification({
-                type: 'error',
-                title: 'Upload failed',
-                message: validationError.message,
-                autoClose: true,
-                duration: 3000
-            });
+            setImageError(validationError.message);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
@@ -112,6 +112,7 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
         if (!tempImage || !cropCanvasRef.current) return;
 
         setUploadingImage(true);
+        setImageError(null);
 
         const img = new Image();
         img.onload = () => {
@@ -169,24 +170,11 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
-
-            showNotification({
-                type: 'success',
-                title: 'Image uploaded',
-                message: 'Profile image uploaded successfully',
-                autoClose: true,
-                duration: 2000
-            });
+            // Visual feedback is the image appearing - no toast needed
         };
 
         img.onerror = () => {
-            showNotification({
-                type: 'error',
-                title: 'Upload failed',
-                message: 'Failed to process image',
-                autoClose: true,
-                duration: 3000
-            });
+            setImageError('Failed to process image');
             setUploadingImage(false);
         };
 
@@ -217,6 +205,8 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
     const handleCreateAssistant = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setError(null);
+
         try {
             const assistantData = {
                 name: fields.name,
@@ -228,26 +218,20 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
             };
             const newAssistant = await createAssistant(userId, assistantData);
             onCreate(newAssistant);
-            showNotification({
-                type: 'success',
-                title: 'Assistant created',
-                message: `Assistant "${fields.name}" has been successfully created.`,
-                autoClose: true,
-                duration: 3000
-            });
-            onClose();
-        } catch (error) {
-            console.error('Failed to create assistant:', error);
-            showNotification({
-                type: 'error',
-                title: 'Failed to create assistant',
-                message: 'Failed to create assistant. Please try again.',
-                autoClose: true,
-                duration: 3000
-            });
+            setShowSuccess(true);
+        } catch (err) {
+            console.error('Failed to create assistant:', err);
+            setError('Failed to create assistant. Please try again.');
+            setShake(true);
+            setTimeout(() => setShake(false), 500);
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleSuccessComplete = () => {
+        setShowSuccess(false);
+        onClose();
     };
 
   return (
@@ -307,6 +291,15 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
         }}
         onClick={e => e.stopPropagation()}
       >
+        {showSuccess ? (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <DialogSuccessState
+              message="Assistant created"
+              onComplete={handleSuccessComplete}
+            />
+          </div>
+        ) : (
+          <>
         {/* Заголовок и подсказка */}
         <div style={{
           width: '85%',
@@ -453,6 +446,20 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
               </div>
             </div>
           )}
+
+          {/* Image upload error */}
+          {imageError && (
+            <div style={{
+              width: '85%',
+              margin: '8px auto 0',
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(220, 38, 38, 0.1)',
+              border: '1px solid rgba(220, 38, 38, 0.3)'
+            }}>
+              <p style={{ color: '#f87171', fontSize: 11, margin: 0 }}>{imageError}</p>
+            </div>
+          )}
         </div>
 
         {/* Поля ввода */}
@@ -576,6 +583,19 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
             }}
             disabled={loading}
           />
+          {/* Error message */}
+          {error && (
+            <div style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              background: 'rgba(220, 38, 38, 0.1)',
+              border: '1px solid rgba(220, 38, 38, 0.3)',
+              marginTop: 8
+            }}>
+              <p style={{ color: '#f87171', fontSize: 11, margin: 0 }}>{error}</p>
+            </div>
+          )}
+
           <div style={{display: 'flex', justifyContent: 'flex-end', gap: 9.6, marginTop: 'auto', paddingTop: 10}}>
             <button
               type="button"
@@ -614,6 +634,8 @@ const NewAssistantModal: React.FC<NewAssistantModalProps> = ({onClose, userId, o
             </button>
           </div>
         </form>
+          </>
+        )}
       </div>
     </div>
 

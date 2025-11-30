@@ -12,7 +12,6 @@ import codeWhiteIcon from '../assets/icons/code-white.svg';
 import closeIcon from '../assets/icons/close.svg';
 import arrowDownIcon from '../assets/icons/arrow-down.svg';
 import AnimatedCheckmark from './AnimatedCheckmark';
-import { useNotification } from '../hooks/useNotification';
 
 interface ArtifactSidebarProps {
     isOpen: boolean;
@@ -27,6 +26,10 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
     const [copiedType, setCopiedType] = React.useState<'text' | 'markdown' | null>(null);
     const copyMenuRef = React.useRef<HTMLDivElement>(null);
 
+    // Inline feedback state for simple copy button
+    const [simpleCopySuccess, setSimpleCopySuccess] = React.useState<boolean>(false);
+    const [copyError, setCopyError] = React.useState<string | null>(null);
+
     // Устанавливаем правильный таб по умолчанию в зависимости от типа контента
     React.useEffect(() => {
         if (selectedArtifact?.isCode || selectedArtifact?.artifact_code) {
@@ -37,8 +40,6 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
         // Сбрасываем выбранное изображение при смене артефакта
         setSelectedImageIndex(0);
     }, [selectedArtifact]);
-
-    const { showNotification } = useNotification();
 
     // Close copy menu when clicking outside
     React.useEffect(() => {
@@ -221,13 +222,8 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                 setTimeout(() => setCopiedType(null), 1000);
             } catch (error) {
                 console.error('Failed to copy:', error);
-                showNotification({
-                    type: 'error',
-                    title: 'Copy failed',
-                    message: 'Failed to copy content. Please try again.',
-                    autoClose: true,
-                    duration: 3000
-                });
+                setCopyError('Failed to copy');
+                setTimeout(() => setCopyError(null), 3000);
             }
         }
         setShowCopyMenu(false);
@@ -243,13 +239,8 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                 setTimeout(() => setCopiedType(null), 1000);
             } catch (error) {
                 console.error('Failed to copy:', error);
-                showNotification({
-                    type: 'error',
-                    title: 'Copy failed',
-                    message: 'Failed to copy content. Please try again.',
-                    autoClose: true,
-                    duration: 3000
-                });
+                setCopyError('Failed to copy');
+                setTimeout(() => setCopyError(null), 3000);
             }
         }
         setShowCopyMenu(false);
@@ -262,32 +253,17 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
         if (codeToCopy) {
             try {
                 await navigator.clipboard.writeText(codeToCopy);
-                showNotification({
-                    type: 'success',
-                    title: 'Code copied',
-                    message: 'Code has been copied to clipboard.',
-                    autoClose: true,
-                    duration: 3000
-                });
+                setSimpleCopySuccess(true);
+                setTimeout(() => setSimpleCopySuccess(false), 1500);
             } catch (error) {
                 console.error('Failed to copy code:', error);
-                showNotification({
-                    type: 'error',
-                    title: 'Copy failed',
-                    message: 'Failed to copy code. Please try again.',
-                    autoClose: true,
-                    duration: 5000
-                });
+                setCopyError('Failed to copy code');
+                setTimeout(() => setCopyError(null), 3000);
             }
         } else {
             console.warn('No code available to copy');
-            showNotification({
-                type: 'error',
-                title: 'No code',
-                message: 'No code available to copy.',
-                autoClose: true,
-                duration: 3000
-            });
+            setCopyError('No code available');
+            setTimeout(() => setCopyError(null), 3000);
         }
     };
 
@@ -310,17 +286,8 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                                 new ClipboardItem({ [blob.type]: blob })
                             ]);
                             console.log('Successfully copied to clipboard via Clipboard API');
-                            const imageFiles = selectedArtifact.files.filter(file => file.isImage);
-                            const isMultipleImages = selectedArtifact.is_multi_response && imageFiles.length > 1;
-                            const imageNumber = isMultipleImages ? ` (image ${selectedImageIndex + 1})` : '';
-                            
-                            showNotification({
-                                type: 'success',
-                                title: 'Image copied',
-                                message: `Image${imageNumber} has been copied to clipboard.`,
-                                autoClose: true,
-                                duration: 3000
-                            });
+                            setSimpleCopySuccess(true);
+                            setTimeout(() => setSimpleCopySuccess(false), 1500);
                             return;
                         } catch (clipboardError) {
                             console.warn('Clipboard API failed, trying fallback:', clipboardError);
@@ -335,41 +302,27 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    
+
                     console.log('Fallback: file download initiated');
-                    const imageFiles = selectedArtifact.files.filter(file => file.isImage);
-                    const isMultipleImages = selectedArtifact.is_multi_response && imageFiles.length > 1;
-                    const imageNumber = isMultipleImages ? ` (image ${selectedImageIndex + 1})` : '';
-                    
-                    showNotification({
-                        type: 'success',
-                        title: 'Image downloaded',
-                        message: `Image${imageNumber} has been successfully downloaded.`,
-                        autoClose: true,
-                        duration: 3000
-                    });
-                    
+                    setSimpleCopySuccess(true);
+                    setTimeout(() => setSimpleCopySuccess(false), 1500);
+
                 } catch (error) {
                     console.error('Failed to copy artifact:', error);
-                    showNotification({
-                        type: 'error',
-                        title: 'Copy failed',
-                        message: 'Failed to copy image. Please try again.',
-                        autoClose: true,
-                        duration: 5000
-                    });
+                    setCopyError('Failed to copy image');
+                    setTimeout(() => setCopyError(null), 3000);
                 }
             }
         } else if (selectedArtifact?.files && selectedArtifact.files.some(file => file.isVideo)) {
             const videoFiles = selectedArtifact.files.filter(file => file.isVideo);
-            
+
             if (videoFiles.length > 0) {
                 const file = videoFiles[0]; // Copy first video
                 try {
                     const blob = new Blob([base64ToUint8Array(file.fileData)], {
                         type: file.fileMimeType || 'video/mp4'
                     });
-                    
+
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -378,43 +331,23 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
-                    
-                    showNotification({
-                        type: 'success',
-                        title: 'Video downloaded',
-                        message: 'Video has been successfully downloaded.',
-                        autoClose: true,
-                        duration: 3000
-                    });
-                    
+
+                    setSimpleCopySuccess(true);
+                    setTimeout(() => setSimpleCopySuccess(false), 1500);
+
                 } catch (error) {
                     console.error('Failed to download video:', error);
-                    showNotification({
-                        type: 'error',
-                        title: 'Download failed',
-                        message: 'Failed to download video. Please try again.',
-                        autoClose: true,
-                        duration: 5000
-                    });
+                    setCopyError('Failed to download video');
+                    setTimeout(() => setCopyError(null), 3000);
                 }
             } else {
-                showNotification({
-                    type: 'error',
-                    title: 'No video',
-                    message: 'No video available to download.',
-                    autoClose: true,
-                    duration: 3000
-                });
+                setCopyError('No video available');
+                setTimeout(() => setCopyError(null), 3000);
             }
         } else {
             console.warn('No file data available for copying');
-            showNotification({
-                type: 'error',
-                title: 'No image',
-                message: 'No image available to copy.',
-                autoClose: true,
-                duration: 3000
-            });
+            setCopyError('No content available');
+            setTimeout(() => setCopyError(null), 3000);
         }
     };
 
@@ -1089,17 +1022,27 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                             onClick={handleCopy}
                             className="text-white font-bold focus:outline-none"
                             style={{
-                                backgroundColor: '#3c3837',
+                                backgroundColor: simpleCopySuccess ? '#262624' : '#3c3837',
                                 fontSize: '16px',
                                 borderRadius: '8px',
-                                padding: '8px 16px'
+                                padding: '8px 16px',
+                                border: simpleCopySuccess ? '1px solid #F4D03F' : '1px solid transparent',
+                                minWidth: '90px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s ease'
                             }}
                             title={selectedArtifact?.files && selectedArtifact.files.some(file => file.isImage) ?
                                    (selectedArtifact.is_multi_response && selectedArtifact.files.filter(file => file.isImage).length > 1) ?
                                    `Copy image ${selectedImageIndex + 1} to clipboard` : 'Copy image to clipboard' :
                                    'Download video'}
                         >
-                            {selectedArtifact?.files && selectedArtifact.files.some(file => file.isVideo) ? 'Download' : 'Copy'}
+                            {simpleCopySuccess ? (
+                                <AnimatedCheckmark size={16} />
+                            ) : (
+                                selectedArtifact?.files && selectedArtifact.files.some(file => file.isVideo) ? 'Download' : 'Copy'
+                            )}
                         </button>
                     )}
                     <button
@@ -1109,6 +1052,17 @@ const ArtifactSidebar: React.FC<ArtifactSidebarProps> = ({ isOpen, onClose, sele
                     >
                        <img src={closeIcon} alt="Close" style={{ width: '24px', height: '24px' }} />
                     </button>
+                    {/* Error message */}
+                    {copyError && (
+                        <span style={{
+                            color: '#f87171',
+                            fontSize: 12,
+                            marginLeft: 8,
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {copyError}
+                        </span>
+                    )}
                 </div>
             </div>
 

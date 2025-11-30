@@ -1,10 +1,10 @@
 import React, {useRef, useEffect, useState} from 'react';
 import {updateAssistant} from '../services/AssistantCRUDService';
 import { Assistant } from '../types/model/Assistant';
-import { useNotification } from '../hooks/useNotification';
 import { validateImageFile } from '../utils/imageUtils';
 import { avatarColors, getInitials } from '../utils/avatarUtils';
 import { Upload, ZoomIn, ZoomOut, Check, X } from 'lucide-react';
+import DialogSuccessState from './DialogSuccessState';
 
 interface EditAssistantModalProps {
     onClose: () => void;
@@ -14,7 +14,6 @@ interface EditAssistantModalProps {
 }
 
 const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId, assistant, onUpdate}) => {
-    const { showNotification } = useNotification();
     const modalRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,6 +60,11 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
     // Shake animation state
     const [shake, setShake] = useState(false);
 
+    // Success and error states
+    const [showSuccess, setShowSuccess] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [imageError, setImageError] = useState<string | null>(null);
+
     const [fields, setFields] = useState({
         name: assistant.name || '',
         token: '',
@@ -101,16 +105,12 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
         const file = e.target.files?.[0];
         if (!file) return;
 
+        setImageError(null);
+
         // Validate file
         const validationError = validateImageFile(file);
         if (validationError) {
-            showNotification({
-                type: 'error',
-                title: 'Upload failed',
-                message: validationError.message,
-                autoClose: true,
-                duration: 3000
-            });
+            setImageError(validationError.message);
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
@@ -203,24 +203,11 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
             }
-
-            showNotification({
-                type: 'success',
-                title: 'Image uploaded',
-                message: 'Profile image uploaded successfully',
-                autoClose: true,
-                duration: 2000
-            });
+            // Visual feedback is the image appearing - no toast needed
         };
 
         img.onerror = () => {
-            showNotification({
-                type: 'error',
-                title: 'Upload failed',
-                message: 'Failed to process image',
-                autoClose: true,
-                duration: 3000
-            });
+            setImageError('Failed to process image');
             setUploadingImage(false);
         };
 
@@ -251,18 +238,19 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
     const handleSaveAssistant = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        let operationSuccess: boolean = false;
+        setError(null);
+
         try {
             const assistantData = {
                 name: fields.name,
                 subtitle: fields.description,
-                avatarUrl: avatarImage || avatarColor, // TODO: Backend - store image, use avatarColor as fallback
+                avatarUrl: avatarImage || avatarColor,
                 webhookUrl: fields.webhook,
                 s2sToken: fields.speechToken,
                 code: fields.code,
             };
             const updateSuccess = await updateAssistant(userId, assistant.id, assistantData);
-        
+
             if (updateSuccess) {
                 const editedAssistant = {
                     ...assistantData,
@@ -270,36 +258,28 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
                     userId: userId,
                     code: assistant.code,
                 };
-                
+
                 onUpdate(editedAssistant);
-                operationSuccess = true;
-                onClose();
+                setShowSuccess(true);
             } else {
                 console.log('Failed to update assistant');
+                setError('Failed to update assistant. Please try again.');
+                setShake(true);
+                setTimeout(() => setShake(false), 500);
             }
-        } catch (error) {
-            console.error('Failed to update assistant:', error);
-            operationSuccess = false;
+        } catch (err) {
+            console.error('Failed to update assistant:', err);
+            setError('Failed to update assistant. Please try again.');
+            setShake(true);
+            setTimeout(() => setShake(false), 500);
         } finally {
             setLoading(false);
         }
-        if (operationSuccess) {
-            showNotification({
-                type: 'success',
-                title: 'Assistant updated',
-                message: `Assistant "${fields.name}" has been successfully updated.`,
-                autoClose: true,
-                duration: 3000
-            });
-        } else {
-            showNotification({
-                type: 'error',
-                title: 'Failed to update assistant',
-                message: 'Failed to update assistant. Please try again.',
-                autoClose: true,
-                duration: 3000
-            });
-        }
+    };
+
+    const handleSuccessComplete = () => {
+        setShowSuccess(false);
+        onClose();
     };
 
     return (
@@ -353,6 +333,15 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
                 }}
                 onClick={e => e.stopPropagation()}
             >
+                {showSuccess ? (
+                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <DialogSuccessState
+                            message="Assistant updated"
+                            onComplete={handleSuccessComplete}
+                        />
+                    </div>
+                ) : (
+                <>
                 {/* Заголовок и подсказка */}
                 <div style={{
                     width: '85%',
@@ -503,6 +492,21 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
                         <div style={{color: '#fff', fontSize: 12}}>Image uploaded - color picker hidden</div>
                     )}
                 </div>
+
+                {/* Image upload error */}
+                {imageError && (
+                    <div style={{
+                        width: '85%',
+                        margin: '8px auto 0',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        background: 'rgba(220, 38, 38, 0.1)',
+                        border: '1px solid rgba(220, 38, 38, 0.3)'
+                    }}>
+                        <p style={{ color: '#f87171', fontSize: 11, margin: 0 }}>{imageError}</p>
+                    </div>
+                )}
+
                 {/* Поля ввода */}
                 <form
                     style={{
@@ -624,6 +628,20 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
                         }}
                         disabled={loading}
                     />
+
+                    {/* Error message */}
+                    {error && (
+                        <div style={{
+                            padding: '8px 12px',
+                            borderRadius: 8,
+                            background: 'rgba(220, 38, 38, 0.1)',
+                            border: '1px solid rgba(220, 38, 38, 0.3)',
+                            marginTop: 8
+                        }}>
+                            <p style={{ color: '#f87171', fontSize: 11, margin: 0 }}>{error}</p>
+                        </div>
+                    )}
+
                     <div style={{display: 'flex', justifyContent: 'flex-end', gap: 9.6, marginTop: 'auto', paddingTop: 10}}>
                         <button
                             type="button"
@@ -662,6 +680,8 @@ const EditAssistantModal: React.FC<EditAssistantModalProps> = ({onClose, userId,
                         </button>
                     </div>
                 </form>
+                </>
+                )}
             </div>
         </div>
 

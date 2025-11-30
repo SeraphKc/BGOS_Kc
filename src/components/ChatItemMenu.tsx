@@ -4,6 +4,7 @@ import { useNotification } from '../hooks/useNotification';
 import ContextMenuPortal from './ContextMenuPortal';
 import StarIcon from './StarIcon';
 import StarFilledIcon from './StarFilledIcon';
+import FloatingCheckmark from './FloatingCheckmark';
 
 interface ChatItemMenuProps {
     chat: Chat;
@@ -24,6 +25,8 @@ const ChatItemMenu: React.FC<ChatItemMenuProps> = ({
 }) => {
     const { showNotification } = useNotification();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [showCopyCheck, setShowCopyCheck] = useState(false);
+    const [checkPosition, setCheckPosition] = useState({ x: 0, y: 0 });
     const buttonRef = useRef<HTMLButtonElement>(null);
 
     const handleMenuClick = (e: React.MouseEvent) => {
@@ -51,15 +54,12 @@ const ChatItemMenu: React.FC<ChatItemMenuProps> = ({
 
     const handleCopyChatId = async (e: React.MouseEvent) => {
         e.stopPropagation();
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setCheckPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+
         try {
             await navigator.clipboard.writeText(chat.id);
-            showNotification({
-                type: 'success',
-                title: 'Chat ID copied',
-                message: 'Chat ID has been copied to clipboard.',
-                autoClose: true,
-                duration: 3000
-            });
+            setShowCopyCheck(true);
         } catch (error) {
             console.error('Failed to copy chat ID:', error);
             showNotification({
@@ -83,6 +83,14 @@ const ChatItemMenu: React.FC<ChatItemMenuProps> = ({
 
     return (
         <div className="relative">
+            {/* Floating checkmark for copy success */}
+            {showCopyCheck && (
+                <FloatingCheckmark
+                    position={checkPosition}
+                    onComplete={() => setShowCopyCheck(false)}
+                />
+            )}
+
             {/* Three-dot menu icon - show when selected, hovered, or menu is open */}
             <button
                 ref={buttonRef}

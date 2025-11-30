@@ -64,6 +64,7 @@
     "@bgos/shared-state": "workspace:*",
     "@bgos/shared-types": "workspace:*",
     "@floating-ui/react": "^0.27.14",
+    "@react-hook/resize-observer": "^2.0.2",
     "@reduxjs/toolkit": "^2.8.2",
     "electron-is-dev": "^3.0.1",
     "electron-squirrel-startup": "^1.0.1",

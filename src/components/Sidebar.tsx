@@ -27,6 +27,7 @@ import RenameDialog from './RenameDialog';
 import DeleteChatConfirmationDialog from './DeleteChatConfirmationDialog';
 import AssistantDeleteConfirmDialog from './AssistantDeleteConfirmDialog';
 import AssignScheduledChatDialog from './AssignScheduledChatDialog';
+import AnimateHeight from './AnimateHeight';
 import { assignScheduledChat } from '../services/ChatCRUDService';
 import LoadingSpinner from './LoadingSpinner';
 import logo2 from '../assets/icons/logo2.svg';
@@ -139,10 +140,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     //
     //     return result;
     // }, [chats, searchQuery]);
-
-    useEffect(() => {
-        setOpenAssistant(selectedAssistant);
-    }, [selectedAssistant]);
 
     // Cleanup timer on unmount
     useEffect(() => {
@@ -638,8 +635,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                 </>
                                             )}
                                         </motion.div>
-                                        {isOpen && !collapsed && (
-                                                <div className='flex flex-col gap-1' style={{ margin: '8px 0', width: !collapsed ? '248px' : 'unset' }}>
+                                        {!collapsed && (
+                                            <AnimateHeight isOpen={isOpen} duration={0.3}>
+                                                <div className='flex flex-col gap-1' style={{ margin: '8px 0', width: '248px' }}>
                                                     {chatList
                                                         .slice()
                                                         .sort((a, b) => {
@@ -712,6 +710,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                             );
                                                         })}
                                                 </div>
+                                            </AnimateHeight>
                                         )}
                                     </Reorder.Item>
                                 );
@@ -771,7 +770,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                                     }}
                                                     onClick={() => {
                                                         onSelectChat(chat.id);
-                                                        onSelectAssistant(chat.assistantId);
                                                     }}
                                                     onMouseEnter={() => setHoveredRecentChatId(chat.id)}
                                                     onMouseLeave={() => setHoveredRecentChatId(null)}
