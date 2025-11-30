@@ -1,6 +1,7 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useWebhook} from "../hooks/useWebhoock";
 import {useChatQueue} from "../hooks/useChatQueue";
+import {useCallbackQuery} from "../hooks/useCallbackQuery";
 import ChatInput from '../components/ChatInput';
 import ChatMessages from './ChatMessages';
 
@@ -11,6 +12,7 @@ import {AnimatePresence} from 'framer-motion';
 import {Assistant} from "../types/model/Assistant";
 import {Chat} from "../types/model/Chat";
 import {ChatHistory, FileInfo} from "../types/model/ChatHistory";
+import type { InlineKeyboardButton, InlineInputState } from '@bgos/shared-types';
 import codeIcon from '../assets/icons/code.svg';
 import graphIcon from '../assets/icons/graph.svg';
 import directboxIcon from '../assets/icons/directbox.svg';
@@ -19,6 +21,14 @@ import briefcaseIcon from '../assets/icons/briefcase.svg';
 import {useAppDispatch, useAppSelector} from '../utils/hooks';
 import {selectShowRightSidebar, selectSidebarCollapsed} from '../utils/selectors';
 import {setShowRightSidebar, setSidebarCollapsed} from '../slices/UISlice';
+import {
+    setButtonLoading,
+    clearButtonLoading,
+    openInlineInput,
+    updateInlineInputValue,
+    setInlineInputSubmitting,
+    closeInlineInput,
+} from '@bgos/shared-state/dist/slices/InlineKeyboardSlice';
 import LoadingSpinner from './LoadingSpinner';
 import {useNotification} from '../hooks/useNotification';
 import {AssistantAndChatDto} from "../types/n8n/AssistantsWithChatsDto";
@@ -88,6 +98,83 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
     // Get current user for personalized greeting
     const currentUser = useAppSelector((state) => state.user.currentUser);
+
+    // Inline keyboard state from Redux
+    const inlineKeyboardState = useAppSelector((state) => state.inlineKeyboard);
+    const activeLoadingButtonId = currentChat?.id
+        ? inlineKeyboardState.loadingButtons[currentChat.id] || null
+        : null;
+
+    // Callback query hook for inline keyboard interactions
+    const { sendCallbackQuery } = useCallbackQuery({
+        webhookUrl: currentAssistant?.webhookUrl || '',
+        userId,
+        timeout: 30000,
+        onNotification: (type, title, message) => {
+            showNotification({
+                type: type === 'info' ? 'info' : type,
+                title,
+                message,
+                autoClose: true,
+                duration: 5000,
+            });
+        },
+    });
+
+    // Inline keyboard handlers
+    const handleInlineCallbackClick = useCallback((callbackData: string, buttonId: string, messageId: string, originalText: string) => {
+        if (!currentChat?.id) return;
+
+        sendCallbackQuery({
+            id: `cb_${Date.now()}`,
+            messageId,
+            chatId: currentChat.id,
+            userId,
+            callback_data: callbackData,
+            original_message_text: originalText,
+            timestamp: new Date().toISOString(),
+        });
+    }, [currentChat?.id, userId, sendCallbackQuery]);
+
+    const handleInlineUrlClick = useCallback((url: string) => {
+        // URL buttons handle opening externally in the button component
+        console.log('URL button clicked:', url);
+    }, []);
+
+    const handleInlineCopyClick = useCallback((text: string) => {
+        // Copy is handled in the button component
+        console.log('Copy button clicked');
+    }, []);
+
+    const handleInlineInputOpen = useCallback((button: InlineKeyboardButton, messageId: string) => {
+        dispatch(openInlineInput({ messageId, button }));
+    }, [dispatch]);
+
+    const handleInlineInputChange = useCallback((value: string) => {
+        dispatch(updateInlineInputValue(value));
+    }, [dispatch]);
+
+    const handleInlineInputCancel = useCallback(() => {
+        dispatch(closeInlineInput());
+    }, [dispatch]);
+
+    const handleInlineInputSubmit = useCallback((value: string) => {
+        const activeInput = inlineKeyboardState.activeInput;
+        if (!activeInput || !currentChat?.id) return;
+
+        dispatch(setInlineInputSubmitting(true));
+
+        sendCallbackQuery({
+            id: `cb_${Date.now()}`,
+            messageId: activeInput.messageId,
+            chatId: currentChat.id,
+            userId,
+            callback_data: activeInput.button.callback_data || 'input_submit',
+            original_message_text: chatHistory.find(m => m.id === activeInput.messageId)?.text || '',
+            user_input: value,
+            timestamp: new Date().toISOString(),
+        });
+    }, [inlineKeyboardState.activeInput, currentChat?.id, userId, chatHistory, dispatch, sendCallbackQuery]);
 
     // Store greeting once when initial state is shown to prevent it from changing while typing
     const [initialGreeting, setInitialGreeting] = useState<string>('');
@@ -570,7 +657,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                                     currentChatId={currentChat?.id}
                                     chatHistory={chatHistory}
                                     maxDbId={maxDbId}
-                                    sendMessage={sendMessage}
+                                    sendMessage={queueSendMessage}
                                     onChatMessage={onChatMessage}
                                     handleNewChat={handleNewChat}
                                     setHasUserInteracted={setHasUserInteracted}
@@ -595,6 +682,16 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                              onToggleArtifacts={handleOpenArtifact}
                              onOpenRightSidebar={handleOpenRightSidebar}
                              onRetryWithAssistant={handleRetryWithAssistant}
+                             // Inline keyboard props
+                             loadingButtonId={activeLoadingButtonId}
+                             inlineInputState={inlineKeyboardState.activeInput}
+                             onCallbackClick={handleInlineCallbackClick}
+                             onUrlClick={handleInlineUrlClick}
+                             onCopyClick={handleInlineCopyClick}
+                             onInputSubmit={handleInlineInputSubmit}
+                             onInputCancel={handleInlineInputCancel}
+                             onInputChange={handleInlineInputChange}
+                             onInputOpen={handleInlineInputOpen}
                          />
                      )}
                     <TranscriptLoader isVisible={isLoadingTranscript} />
@@ -619,7 +716,7 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                             currentChatId={currentChat?.id}
                             chatHistory={chatHistory}
                             maxDbId={maxDbId}
-                            sendMessage={sendMessage}
+                            sendMessage={queueSendMessage}
                             onChatMessage={onChatMessage}
                             handleNewChat={handleNewChat}
                             setHasUserInteracted={setHasUserInteracted}

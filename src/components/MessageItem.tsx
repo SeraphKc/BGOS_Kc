@@ -8,6 +8,8 @@ import {getDurationFromBase64} from "../utils/audioUtils";
 import codeIcon from '../assets/icons/code.svg';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { InlineKeyboard } from './inline-keyboard';
+import type { InlineKeyboardButton, InlineInputState } from '@bgos/shared-types';
 
 interface MessageItemProps {
     message: ChatHistory;
@@ -17,6 +19,16 @@ interface MessageItemProps {
     assistant?: Assistant;
     onToggleArtifacts?: (artifact: ChatHistory) => void;
     onOpenRightSidebar?: (artifact?: ChatHistory) => void;
+    // Inline keyboard handlers (optional - only passed when keyboard support is enabled)
+    loadingButtonId?: string | null;
+    inlineInputState?: InlineInputState | null;
+    onCallbackClick?: (callbackData: string, buttonId: string) => void;
+    onUrlClick?: (url: string) => void;
+    onCopyClick?: (text: string) => void;
+    onInputSubmit?: (value: string) => void;
+    onInputCancel?: () => void;
+    onInputChange?: (value: string) => void;
+    onInputOpen?: (button: InlineKeyboardButton) => void;
 }
 
 const MessageItem: React.FC<MessageItemProps> = ({
@@ -26,7 +38,16 @@ const MessageItem: React.FC<MessageItemProps> = ({
                                                      assistantAvatar,
                                                      assistant,
                                                      onToggleArtifacts,
-                                                     onOpenRightSidebar
+                                                     onOpenRightSidebar,
+                                                     loadingButtonId,
+                                                     inlineInputState,
+                                                     onCallbackClick,
+                                                     onUrlClick,
+                                                     onCopyClick,
+                                                     onInputSubmit,
+                                                     onInputCancel,
+                                                     onInputChange,
+                                                     onInputOpen,
                                                  }) => {
     const isAudio = message.audioFileName && /\.(webm|mpeg|mp3|wav|ogg|m4a)$/i.test(message.audioFileName);
     const hasAudioData: boolean = !!(isAudio && message.audioData && message.audioData);
@@ -656,6 +677,25 @@ const MessageItem: React.FC<MessageItemProps> = ({
                         </span>
                     </div>
                 </div>
+            )}
+
+            {/* Interactive Inline Keyboard - only rendered if reply_markup exists */}
+            {message.reply_markup && onCallbackClick && onInputOpen && (
+                <InlineKeyboard
+                    messageId={message.id || ''}
+                    chatId={message.chatId || ''}
+                    originalText={message.text || ''}
+                    markup={message.reply_markup}
+                    loadingButtonId={loadingButtonId || null}
+                    inlineInputState={inlineInputState || null}
+                    onCallbackClick={onCallbackClick}
+                    onUrlClick={onUrlClick || (() => {})}
+                    onCopyClick={onCopyClick || (() => {})}
+                    onInputSubmit={onInputSubmit || (() => {})}
+                    onInputCancel={onInputCancel || (() => {})}
+                    onInputChange={onInputChange || (() => {})}
+                    onInputOpen={onInputOpen}
+                />
             )}
 
             {message.files && message.files.length > 0 && !hasImageData && !hasAudioData && !hasVideoData && !hasMultiImages && (

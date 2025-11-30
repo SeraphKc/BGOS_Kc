@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import MessageItem from './MessageItem';
 import {Assistant} from "../types/model/Assistant";
 import {ChatHistory} from "../types/model/ChatHistory";
+import type { InlineKeyboardButton, InlineInputState } from '@bgos/shared-types';
 import copyIcon from '../assets/icons/copy.svg';
 import RetryAssistantSelector from './RetryAssistantSelector';
 import BDOSIcon from './icons/BDOSIcon';
@@ -18,10 +19,38 @@ interface ChatMessagesProps {
     onToggleArtifacts?: (artifact: ChatHistory) => void;
     onOpenRightSidebar?: (artifact?: ChatHistory) => void;
     onRetryWithAssistant?: (assistantId: string) => void;
+    // Inline keyboard props (optional - only passed when keyboard support is enabled)
+    loadingButtonId?: string | null;
+    inlineInputState?: InlineInputState | null;
+    onCallbackClick?: (callbackData: string, buttonId: string, messageId: string, originalText: string) => void;
+    onUrlClick?: (url: string) => void;
+    onCopyClick?: (text: string) => void;
+    onInputSubmit?: (value: string) => void;
+    onInputCancel?: () => void;
+    onInputChange?: (value: string) => void;
+    onInputOpen?: (button: InlineKeyboardButton, messageId: string) => void;
 }
 
 
-const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assistants = [], isLoading = false, onToggleArtifacts, onOpenRightSidebar, onRetryWithAssistant }) => {
+const ChatMessages: React.FC<ChatMessagesProps> = ({
+    messages,
+    assistant,
+    assistants = [],
+    isLoading = false,
+    onToggleArtifacts,
+    onOpenRightSidebar,
+    onRetryWithAssistant,
+    // Inline keyboard props
+    loadingButtonId,
+    inlineInputState,
+    onCallbackClick,
+    onUrlClick,
+    onCopyClick,
+    onInputSubmit,
+    onInputCancel,
+    onInputChange,
+    onInputOpen,
+}) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Get current user for initials
@@ -121,6 +150,15 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                                             assistant={assistant}
                                             onToggleArtifacts={onToggleArtifacts}
                                             onOpenRightSidebar={onOpenRightSidebar}
+                                            loadingButtonId={loadingButtonId}
+                                            inlineInputState={inlineInputState}
+                                            onCallbackClick={onCallbackClick ? (data, btnId) => onCallbackClick(data, btnId, message.id || '', message.text || '') : undefined}
+                                            onUrlClick={onUrlClick}
+                                            onCopyClick={onCopyClick}
+                                            onInputSubmit={onInputSubmit}
+                                            onInputCancel={onInputCancel}
+                                            onInputChange={onInputChange}
+                                            onInputOpen={onInputOpen ? (btn) => onInputOpen(btn, message.id || '') : undefined}
                                         />
                                     </div>
                                 </div>
@@ -155,8 +193,17 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ messages, assistant, assist
                                         assistant={assistant}
                                         onToggleArtifacts={onToggleArtifacts}
                                         onOpenRightSidebar={onOpenRightSidebar}
+                                        loadingButtonId={loadingButtonId}
+                                        inlineInputState={inlineInputState}
+                                        onCallbackClick={onCallbackClick ? (data, btnId) => onCallbackClick(data, btnId, message.id || '', message.text || '') : undefined}
+                                        onUrlClick={onUrlClick}
+                                        onCopyClick={onCopyClick}
+                                        onInputSubmit={onInputSubmit}
+                                        onInputCancel={onInputCancel}
+                                        onInputChange={onInputChange}
+                                        onInputOpen={onInputOpen ? (btn) => onInputOpen(btn, message.id || '') : undefined}
                                     />
-                                    
+
                                     {/* BDOS Icon and Controls Footer - for all assistant messages */}
                                     <div className={`flex flex-col gap-2 mt-4 w-full group ${index === filteredMessages.length - 1 ? '' : 'hover:opacity-100 opacity-0 transition-opacity duration-200'}`}>
                                         <div className="flex justify-between items-center w-full">

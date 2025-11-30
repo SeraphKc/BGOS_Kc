@@ -1,3 +1,5 @@
+import type { InlineKeyboardMarkup } from './InlineKeyboard';
+
 export type Sender = 'user' | 'assistant';
 
 export type MessageStatus = 'sending' | 'queued' | 'sent' | 'delivered' | 'failed';
@@ -32,4 +34,5 @@ export type ChatHistory = {
     files?: FileInfo[];
     isMixedAttachments?:boolean;
     status?: MessageStatus; // Message delivery status for queuing system
+    reply_markup?: InlineKeyboardMarkup; // Interactive inline keyboard attached to message
 };

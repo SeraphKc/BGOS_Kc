@@ -62,6 +62,7 @@
   "dependencies": {
     "@11labs/react": "^0.1.4",
     "@bgos/shared-state": "workspace:*",
+    "@bgos/shared-types": "workspace:*",
     "@floating-ui/react": "^0.27.14",
     "@reduxjs/toolkit": "^2.8.2",
     "electron-is-dev": "^3.0.1",

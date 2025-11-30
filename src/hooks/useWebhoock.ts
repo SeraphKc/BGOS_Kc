@@ -51,6 +51,8 @@ export function mapChatHistoryFromServer(data: any): ChatHistory {
         audioData: data.audio_data ?? undefined,
         audioFileName: data.audio_file_name ?? undefined,
         audioMimeType: data.audio_mime_type ?? undefined,
+        // Interactive inline keyboard for callback queries
+        reply_markup: data.reply_markup ?? undefined,
     };
 }
 

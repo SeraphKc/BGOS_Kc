@@ -5,6 +5,7 @@ import chatHistoryReducer from '../slices/ChatHistorySlice';
 import uiReducer from '../slices/UISlice';
 import userReducer from '../slices/UserSlice';
 import voiceReducer from '@bgos/shared-state/dist/slices/voiceSlice';
+import inlineKeyboardReducer from '@bgos/shared-state/dist/slices/InlineKeyboardSlice';
 import { remoteDatabaseApi } from '../services/DatabaseSyncService';
 
 export const store = configureStore({
@@ -15,6 +16,7 @@ export const store = configureStore({
         ui: uiReducer,
         user: userReducer,
         voice: voiceReducer,
+        inlineKeyboard: inlineKeyboardReducer,
         [remoteDatabaseApi.reducerPath]: remoteDatabaseApi.reducer,
     },
     middleware: (getDefaultMiddleware) =>

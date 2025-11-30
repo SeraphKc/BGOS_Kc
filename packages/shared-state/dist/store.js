@@ -5,6 +5,7 @@ import chatsReducer from './slices/ChatSlice';
 import chatHistoryReducer from './slices/ChatHistorySlice';
 import uiReducer from './slices/UISlice';
 import voiceReducer from './slices/voiceSlice';
+import inlineKeyboardReducer from './slices/InlineKeyboardSlice';
 export const createStore = () => {
     return configureStore({
         reducer: {
@@ -14,6 +15,7 @@ export const createStore = () => {
             chatHistory: chatHistoryReducer,
             ui: uiReducer,
             voice: voiceReducer,
+            inlineKeyboard: inlineKeyboardReducer,
         },
     });
 };

@@ -5,3 +5,4 @@ export * as ChatActions from './slices/ChatSlice';
 export * as ChatHistoryActions from './slices/ChatHistorySlice';
 export * as UIActions from './slices/UISlice';
 export * as VoiceActions from './slices/voiceSlice';
+export * as InlineKeyboardActions from './slices/InlineKeyboardSlice';
